@@ -5,6 +5,7 @@ module GrabCite.GetCitations
     ( extractCitations
     , ExtractionResult(..)
     , CitInfoCand(..), CitMarkerCand(..)
+    , ContentNode(..), ContentRef(..)
     )
 where
 
@@ -14,8 +15,10 @@ import Data.Char
 import Data.List
 import Data.Maybe
 import Data.Ord
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
+import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
@@ -47,14 +50,27 @@ markerPairs =
     , ('(', ')')
     ]
 
-data ExtractionResult
+data ContentRef t
+    = ContentRef
+    { cr_info :: !T.Text
+    , cr_origMarker :: !T.Text
+    , cr_score :: !Double
+    , cr_tag :: !t
+    } deriving (Show, Eq)
+
+data ContentNode t
+    = CnText !T.Text
+    | CnRef !(ContentRef t)
+    deriving (Show, Eq)
+
+data ExtractionResult t
     = ExtractionResult
     { er_citations :: ![CitInfoCand]
     , er_markers :: ![CitMarkerCand]
-    , er_citationFreeText :: !T.Text
+    , er_nodes :: ![ContentNode t]
     } deriving (Show, Eq)
 
-extractCitations :: T.Text -> ExtractionResult
+extractCitations :: T.Text -> ExtractionResult ()
 extractCitations txt =
     let markerCands = collectMarkerCands txt
         withInfo = extractCitInfoLines txt markerCands
@@ -63,7 +79,7 @@ extractCitations txt =
     in ExtractionResult
        { er_citations = matchedCands
        , er_markers = rMarkers
-       , er_citationFreeText = removeMarkers txt rMarkers
+       , er_nodes = toNodes txt matchedCands rMarkers
        }
 
 relevantMarkers :: [CitInfoCand] -> [CitMarkerCand] -> [CitMarkerCand]
@@ -74,23 +90,52 @@ relevantMarkers cics =
           flip any (cmc_references cmc) $ \ref -> HS.member (ref, cmc_markerPair cmc) cicSet
       cicSet = HS.fromList $ flip map cics $ \cic -> (cic_ref cic, cmc_markerPair $ cic_marker cic)
 
-removeMarkers :: T.Text -> [CitMarkerCand] -> T.Text
-removeMarkers txtIn cmc =
-    loop mempty txtIn 0
+toNodes :: T.Text -> [CitInfoCand] -> [CitMarkerCand] -> [ContentNode ()]
+toNodes txtIn cics cmcs =
+    F.toList $ loop mempty mempty txtIn 0
     where
-      loop !accum !txt !pos
-          | T.null txt = TL.toStrict $ TLB.toLazyText accum
+      mkInfoMap hm cic =
+          let marker = cic_marker cic
+          in HM.insert (cic_ref cic, cmc_markerPair marker) cic hm
+      infoMap =
+          foldl' mkInfoMap HM.empty cics
+      makeNodes :: [CitMarkerCand] -> [ContentRef ()]
+      makeNodes cmc =
+          flip concatMap cmc $ \c ->
+          flip mapMaybe (cmc_references c) $ \ref ->
+          do cic <- HM.lookup (ref, cmc_markerPair c) infoMap
+             let (mo, mc) = cmc_markerPair c
+             pure
+                 ContentRef
+                 { cr_info = cic_line cic
+                 , cr_origMarker = T.singleton mo <> ref <> T.singleton mc
+                 , cr_score = cic_score cic
+                 , cr_tag = ()
+                 }
+      loop !txtAccum !accum !txt !pos
+          | T.null txt =
+                let collected = TL.toStrict $ TLB.toLazyText txtAccum
+                    finalNode =
+                        if T.null collected
+                        then Seq.empty
+                        else Seq.singleton (CnText collected)
+                in accum <> finalNode
           | otherwise =
               case HM.lookup pos startPosMap of
                 Just elsStartingHere ->
                     let maxIdx = maximum $ map (snd . cmc_range) elsStartingHere
                         len = 1 + (maxIdx - pos)
-                    in loop accum (T.drop len txt) (pos + len)
-                Nothing -> loop (accum <> TLB.fromText (T.take 1 txt)) (T.drop 1 txt) (pos + 1)
+                        textNode = CnText $ TL.toStrict (TLB.toLazyText txtAccum)
+                        refNodes =
+                            Seq.fromList $ makeNodes elsStartingHere
+                        accum' = accum <> (Seq.singleton textNode <> fmap CnRef refNodes)
+                    in loop mempty accum' (T.drop len txt) (pos + len)
+                Nothing ->
+                    loop (txtAccum <> TLB.fromText (T.take 1 txt)) accum (T.drop 1 txt) (pos + 1)
       mkMap hm el =
           HM.insertWith (++) (fst $ cmc_range el) [el] hm
       startPosMap =
-          foldl' mkMap HM.empty cmc
+          foldl' mkMap HM.empty cmcs
 
 isCitation :: T.Text -> Bool
 isCitation txt =

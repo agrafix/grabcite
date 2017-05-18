@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Util.Dblp where
+module GrabCite.Dblp where
 
 import Data.Aeson
 import Data.Monoid
