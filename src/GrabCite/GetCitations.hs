@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 module GrabCite.GetCitations where
 
 import Control.Monad.RWS.Strict
@@ -12,6 +13,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.Ord
 import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Lazy as TL
@@ -48,10 +50,39 @@ markerPairs =
 
 testIt :: IO ()
 testIt =
-    do txt <- T.readFile "foo.txt"
+    do txt <- T.readFile "foo2.txt"
        let markerCands = collectMarkerCands txt
-       let withInfo = extractCitInfoLines txt markerCands
-       mapM_ (T.putStrLn . niceOutput) (bestCands withInfo)
+           withInfo = extractCitInfoLines txt markerCands
+           matchedCands = bestCands withInfo
+       mapM_ (T.putStrLn . niceOutput) matchedCands
+       let rMarkers = relevantMarkers matchedCands markerCands
+       T.putStrLn $ removeMarkers txt rMarkers
+
+relevantMarkers :: [CitInfoCand] -> [CitMarkerCand] -> [CitMarkerCand]
+relevantMarkers cic =
+    filter has
+    where
+      has cmc =
+          flip any (cmc_references cmc) $ \ref -> HS.member (ref, cmc_markerPair cmc) cicSet
+      cicSet = HS.fromList $ flip map cic $ \cic -> (cic_ref cic, cmc_markerPair $ cic_marker cic)
+
+removeMarkers :: T.Text -> [CitMarkerCand] -> T.Text
+removeMarkers txt cmc =
+    loop mempty txt 0
+    where
+      loop !accum !txt !pos
+          | T.null txt = TL.toStrict $ TLB.toLazyText accum
+          | otherwise =
+              case HM.lookup pos startPosMap of
+                Just elsStartingHere ->
+                    let maxIdx = maximum $ map (snd . cmc_range) elsStartingHere
+                        len = 1 + (maxIdx - pos)
+                    in loop accum (T.drop len txt) (pos + len)
+                Nothing -> loop (accum <> TLB.fromText (T.take 1 txt)) (T.drop 1 txt) (pos + 1)
+      mkMap hm el =
+          HM.insertWith (++) (fst $ cmc_range el) [el] hm
+      startPosMap =
+          foldl' mkMap HM.empty cmc
 
 isCitation :: T.Text -> Bool
 isCitation txt =
@@ -59,11 +90,20 @@ isCitation txt =
             T.all isDigit txt
             || "et al." `T.isInfixOf` txt
             || not (null $ extractYears txt)
+            || not (null $ getNumberList txt)
         notOnlyAYear =
             case extractYears txt of
               (x:_) -> x /= txt
               _ -> True
     in basic && notOnlyAYear
+
+getNumberList :: T.Text -> [T.Text]
+getNumberList txt =
+    let splitted = map T.strip $ T.splitOn "," txt
+        cond = all (T.all isDigit) splitted && not (null splitted)
+    in if cond then splitted else []
+
+
 extractYears :: T.Text -> [T.Text]
 extractYears txt =
     filter (\grp -> T.all isDigit grp
@@ -89,7 +129,7 @@ collectMarkerCands txt =
 extractMarkerCands ::
     (MonadReader MarkerPairs m, MonadState Context m, MonadWriter [CitMarkerCand] m)
     => T.Text -> Int -> m (T.Text, Int)
-extractMarkerCands txt pos =
+extractMarkerCands !txt !pos =
     do mp <- ask
        case T.uncons txt of
          Just (chr, more) ->
@@ -122,8 +162,14 @@ extractMarkerCands txt pos =
                                                       filter (not . T.null) $
                                                       map T.strip . T.splitOn ";" $
                                                       T.take (T.length traw - 1) traw
+                                                  v' =
+                                                      case v of
+                                                        [x] -> case getNumberList x of
+                                                                 [] -> v
+                                                                 numList -> numList
+                                                        _ -> v
                                               in if not (null v)
-                                                 then [ CitMarkerCand v
+                                                 then [ CitMarkerCand v'
                                                           (oc_start closedContext, pos)
                                                           (oc_markerPair closedContext)
                                                       ]
