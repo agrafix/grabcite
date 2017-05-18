@@ -58,7 +58,6 @@ toQueryUrl q =
           [ ( "q", Just (dq_query q) )
           , ( "h", Just "1" )
           , ( "c", Just "0" )
-          , ( "s", Just "yvpc" )
           , ( "format", Just "json" )
           ]
 
@@ -68,9 +67,10 @@ queryDblp manager q =
     do request <-
            parseRequest (toQueryUrl q)
        response <- httpLbs request manager
+       let rb = responseBody response
        case statusCode (responseStatus response) of
           200 ->
-              case eitherDecode' (responseBody response) of
-                Left errMsg -> pure (Left errMsg)
+              case eitherDecode' rb of
+                Left errMsg -> pure (Left $ errMsg ++ "\n" ++ show rb)
                 Right ok -> pure (Right ok)
           st -> pure (Left $ "Bad status code: " ++ show st)
