@@ -1,25 +1,24 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
-module GrabCite.GetCitations where
+module GrabCite.GetCitations
+    ( extractCitations
+    , ExtractionResult(..)
+    , CitInfoCand(..), CitMarkerCand(..)
+    )
+where
 
 import Control.Monad.RWS.Strict
-import Control.Monad.Reader
-import Control.Monad.State
-import Control.Monad.Writer
+import Data.Bifunctor
 import Data.Char
 import Data.List
 import Data.Maybe
-import Data.Monoid
 import Data.Ord
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
-
-import Debug.Trace
 
 data CitMarkerCand
     = CitMarkerCand
@@ -48,27 +47,36 @@ markerPairs =
     , ('(', ')')
     ]
 
-testIt :: IO ()
-testIt =
-    do txt <- T.readFile "foo2.txt"
-       let markerCands = collectMarkerCands txt
-           withInfo = extractCitInfoLines txt markerCands
-           matchedCands = bestCands withInfo
-       mapM_ (T.putStrLn . niceOutput) matchedCands
-       let rMarkers = relevantMarkers matchedCands markerCands
-       T.putStrLn $ removeMarkers txt rMarkers
+data ExtractionResult
+    = ExtractionResult
+    { er_citations :: ![CitInfoCand]
+    , er_markers :: ![CitMarkerCand]
+    , er_citationFreeText :: !T.Text
+    } deriving (Show, Eq)
+
+extractCitations :: T.Text -> ExtractionResult
+extractCitations txt =
+    let markerCands = collectMarkerCands txt
+        withInfo = extractCitInfoLines txt markerCands
+        matchedCands = bestCands withInfo
+        rMarkers = relevantMarkers matchedCands markerCands
+    in ExtractionResult
+       { er_citations = matchedCands
+       , er_markers = rMarkers
+       , er_citationFreeText = removeMarkers txt rMarkers
+       }
 
 relevantMarkers :: [CitInfoCand] -> [CitMarkerCand] -> [CitMarkerCand]
-relevantMarkers cic =
+relevantMarkers cics =
     filter has
     where
       has cmc =
           flip any (cmc_references cmc) $ \ref -> HS.member (ref, cmc_markerPair cmc) cicSet
-      cicSet = HS.fromList $ flip map cic $ \cic -> (cic_ref cic, cmc_markerPair $ cic_marker cic)
+      cicSet = HS.fromList $ flip map cics $ \cic -> (cic_ref cic, cmc_markerPair $ cic_marker cic)
 
 removeMarkers :: T.Text -> [CitMarkerCand] -> T.Text
-removeMarkers txt cmc =
-    loop mempty txt 0
+removeMarkers txtIn cmc =
+    loop mempty txtIn 0
     where
       loop !accum !txt !pos
           | T.null txt = TL.toStrict $ TLB.toLazyText accum
@@ -132,24 +140,24 @@ extractMarkerCands ::
 extractMarkerCands !txt !pos =
     do mp <- ask
        case T.uncons txt of
-         Just (chr, more) ->
+         Just (c, more) ->
              do let continue = pure (more, pos + 1)
                 modify $ \ctx ->
                     ctx
                     { ctx_open =
-                            HM.map (\oc -> oc { oc_text = oc_text oc <> TLB.singleton chr }) (ctx_open ctx)
+                            HM.map (\oc -> oc { oc_text = oc_text oc <> TLB.singleton c }) (ctx_open ctx)
                     }
-                case HM.lookup chr mp of
+                case HM.lookup c mp of
                   Just closeChr ->
                       do modify $ \ctx ->
                              ctx
                              { ctx_open =
-                                 HM.insert closeChr (OpenContext mempty (chr, closeChr) pos) (ctx_open ctx)
+                                 HM.insert closeChr (OpenContext mempty (c, closeChr) pos) (ctx_open ctx)
                              }
                          continue
                   Nothing ->
                       do ctx <- gets ctx_open
-                         case HM.lookup chr ctx of
+                         case HM.lookup c ctx of
                            Just closedContext ->
                                do tell $
                                       let traw =
@@ -174,7 +182,7 @@ extractMarkerCands !txt !pos =
                                                           (oc_markerPair closedContext)
                                                       ]
                                                  else []
-                                  modify $ \ctx -> ctx { ctx_open = HM.delete chr (ctx_open ctx) }
+                                  modify $ \ctxr -> ctxr { ctx_open = HM.delete c (ctx_open ctxr) }
                                   continue
                            Nothing -> continue
          Nothing -> pure (T.empty, pos)
@@ -195,10 +203,6 @@ matchScore search haystack =
                  filter (\y -> y `T.isInfixOf` haystack) search
              total = length search
          in (fromIntegral matches / fromIntegral total)
-
-niceOutput :: CitInfoCand -> T.Text
-niceOutput cic =
-    "* " <> cic_ref cic <> " (" <> T.pack (show (cic_score cic)) <> ") " <> cic_line cic
 
 data CitInfoCand
     = CitInfoCand
@@ -229,10 +233,11 @@ extractCitInfoLines txt markerCands =
               (_, ubound) = cmc_range mc
               rawLines = filter (not . T.null) $ map T.strip $ T.lines (T.drop ubound txt)
               skippedLines = allLines - fromIntegral (length rawLines)
-              mkPos (ln, idx) =
-                  (ln, (skippedLines + fromIntegral idx) / allLines)
+              mkPos :: Int -> Double
+              mkPos idx =
+                  (skippedLines + fromIntegral idx) / allLines
               cicCand =
-                  sortOn (Down . cic_score) $ mapMaybe (handleLine mp . mkPos) (zip rawLines [1..])
+                  sortOn (Down . cic_score) $ mapMaybe (handleLine mp . second mkPos) (zip rawLines [1..])
           in listToMaybe cicCand
       mkCand line (totalScore, (ref, mc)) =
           CitInfoCand
@@ -260,8 +265,8 @@ extractCitInfoLines txt markerCands =
           let (o, c) = cmc_markerPair mc
               years = extractYears ref
               names =
-                  filter (\txt -> T.length txt >= 2 && txt `notElem` years) $
+                  filter (\t -> T.length t >= 2 && t `notElem` years) $
                   map (T.toLower . T.strip . T.filter (/= '.')) $
-                  T.split (\c -> c == ',' || c == '&') $ T.replace "et al" "" ref
+                  T.split (\ch -> ch == ',' || ch == '&') $ T.replace "et al" "" ref
               full = T.singleton o <> ref <> T.singleton c
           in (LineCitInfo years names full, ref, mc)

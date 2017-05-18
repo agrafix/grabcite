@@ -1,7 +1,7 @@
 name:                grabcite
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            Library to extract citations from scientific papers
+description:         Library to extract citations from scientific papers
 homepage:            https://github.com/agrafix/grabcite#readme
 license:             BSD3
 license-file:        LICENSE
