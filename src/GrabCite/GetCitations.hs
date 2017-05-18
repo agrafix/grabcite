@@ -48,10 +48,10 @@ markerPairs =
 
 testIt :: IO ()
 testIt =
-    do txt <- T.readFile "foo2.txt"
+    do txt <- T.readFile "foo.txt"
        let markerCands = collectMarkerCands txt
        let withInfo = extractCitInfoLines txt markerCands
-       mapM_ (T.putStrLn . niceOutput) withInfo
+       mapM_ (T.putStrLn . niceOutput) (bestCands withInfo)
 
 isCitation :: T.Text -> Bool
 isCitation txt =
@@ -162,19 +162,29 @@ data CitInfoCand
     , cic_marker :: !CitMarkerCand
     } deriving (Show, Eq)
 
+bestCands :: [CitInfoCand] -> [CitInfoCand]
+bestCands =
+    mapMaybe bestScore . HM.elems . foldl' grouper HM.empty
+    where
+      bestScore cic =
+          listToMaybe $ sortOn (Down . cic_score) cic
+      grouper hm el =
+          HM.insertWith (++) (cic_ref el) [el] hm
+
 extractCitInfoLines :: T.Text -> [CitMarkerCand] -> [CitInfoCand]
 extractCitInfoLines txt markerCands =
     catMaybes $
     flip concatMap markerCands $ \mc -> flip map (cmc_references mc) $ \ref ->
     runMarkerCand mc ref
     where
+      allLines = fromIntegral $ length (map T.strip $ T.lines txt) + 1
       runMarkerCand mc ref =
           let mp = mkMarkerCandMap mc ref
               (_, ubound) = cmc_range mc
               rawLines = filter (not . T.null) $ map T.strip $ T.lines (T.drop ubound txt)
-              totalLines = fromIntegral (length rawLines) + 1
+              skippedLines = allLines - fromIntegral (length rawLines)
               mkPos (ln, idx) =
-                  (ln, (fromIntegral idx / totalLines))
+                  (ln, (skippedLines + fromIntegral idx) / allLines)
               cicCand =
                   sortOn (Down . cic_score) $ mapMaybe (handleLine mp . mkPos) (zip rawLines [1..])
           in listToMaybe cicCand
@@ -197,8 +207,9 @@ extractCitInfoLines txt markerCands =
                   let wordMatch w pts = if w `T.isInfixOf` line then pts else 0
                   in wordMatch "proceeding" 0.5 + wordMatch "isbn" 0.5
                      + wordMatch "doi" 0.5 + wordMatch "pp." 0.5
-              totalScore = (yearScore * 0.5) + nameScore + fullScore + lineScore + percPos
-          in if totalScore > 0.5 then Just (mkCand line (totalScore, (ref, mc))) else Nothing
+              mainScore = (yearScore * 0.5) + (2 * nameScore) + fullScore + lineScore
+              totalScore = mainScore + (percPos * 0.3)
+          in if mainScore > 1.0 then Just (mkCand line (totalScore, (ref, mc))) else Nothing
       mkMarkerCandMap mc ref =
           let (o, c) = cmc_markerPair mc
               years = extractYears ref
