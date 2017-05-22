@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     GrabCite.GetCitations, GrabCite.Dblp, GrabCite.Annotate, GrabCite
+  exposed-modules:     GrabCite.GetCitations, GrabCite.Dblp, GrabCite.Annotate, GrabCite, GrabCite.Stats
   other-modules:       Util.Pdf
   build-depends:       base >= 4.7 && < 5,
                        bytestring >= 0.10,

@@ -5,6 +5,7 @@ import GrabCite
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.Layout
+import GrabCite.Stats
 
 import Web.Spock
 import Web.Spock.Config
@@ -54,4 +55,6 @@ handleText txt =
     liftIO (getCitationsFromPlainText txt) >>= handleResults
 
 handleResults :: ExtractionResult (Maybe DblpPaper) -> Action ()
-handleResults = lucid . resultsPage
+handleResults er =
+    do let stats = getCitStats er
+       lucid $ resultsPage er stats

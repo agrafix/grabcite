@@ -3,6 +3,7 @@ module GrabCite.Layout where
 
 import GrabCite.Dblp
 import GrabCite.GetCitations
+import GrabCite.Stats
 
 import Control.Monad
 import Data.Monoid
@@ -24,13 +25,16 @@ mainPage =
                   do input_ [type_ "file", name_ "file"]
                      input_ [type_ "submit", value_ "Extract"]
 
-resultsPage :: ExtractionResult (Maybe DblpPaper) -> Html ()
-resultsPage er =
+resultsPage :: ExtractionResult (Maybe DblpPaper) -> CitationStats -> Html ()
+resultsPage er stats =
     html_ $
     do head_ $
            title_ "GrabCite :: Reference extraction"
        body_ $
            do h1_ "Extraction results"
+              h2_ "Statistics"
+              p_ (toHtml $ "Total words: " <> show (cs_words stats))
+              p_ (toHtml $ "Total citation markers: " <> show (cs_anchors stats))
               h2_ "Annotated Text"
               pre_ $
                   forM_ (er_nodes er) $ \node ->
