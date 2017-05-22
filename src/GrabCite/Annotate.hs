@@ -40,7 +40,7 @@ annotateReferences contentNodes =
               CnText t -> pure (CnText t)
               CnRef r ->
                   do let strWords =
-                             filter (\t -> T.length t > 2 && not (T.all isDigit t)) $
+                             filter (\t -> T.length t > 2 && T.all isAlpha t) $
                              map T.strip $
                              T.words (textRemovePunc $ cr_info r)
                          searchQuery = T.unwords strWords
