@@ -44,9 +44,9 @@ annotateReferences contentNodes =
                              map T.strip $
                              T.words (textRemovePunc $ cr_info r)
                          searchQuery = T.unwords strWords
-                         leftOver = T.drop 30 searchQuery
+                         leftOver = T.drop 40 searchQuery
                          q =
-                             T.take 30 searchQuery <> T.takeWhile isAlpha leftOver
+                             T.take 40 searchQuery <> T.takeWhile isAlpha leftOver
                      if T.length q < 5
                         then do putStrLn $
                                     "Search string to short: " ++ show q
