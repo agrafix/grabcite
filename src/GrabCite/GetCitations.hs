@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE QuasiQuotes #-}
 module GrabCite.GetCitations
     ( extractCitations
     , ExtractionResult(..)
@@ -10,12 +11,15 @@ module GrabCite.GetCitations
     )
 where
 
+import Util.Regex
+
 import Control.Monad.RWS.Strict
 import Data.Bifunctor
 import Data.Char
 import Data.List
 import Data.Maybe
 import Data.Ord
+import Text.Regex.PCRE.Heavy
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
@@ -92,8 +96,18 @@ extractCitations txt =
     in ExtractionResult
        { er_citations = matchedCands
        , er_markers = rMarkers
-       , er_nodes = toNodes txt matchedCands rMarkers
+       , er_nodes = toNodes (removeReferencesSection txt) matchedCands rMarkers
        }
+
+removeReferencesSection :: T.Text -> T.Text
+removeReferencesSection txtRaw =
+    let isRefIntroLine :: T.Text -> Bool
+        isRefIntroLine ln
+            | not (T.null ln) = ln =~ refSectionIntro
+            | otherwise = False
+        refSectionLines =
+            takeWhile (not . isRefIntroLine . T.strip) $ T.lines txtRaw
+    in T.unlines refSectionLines
 
 relevantMarkers :: [CitInfoCand] -> [CitMarkerCand] -> [CitMarkerCand]
 relevantMarkers cics =
@@ -249,7 +263,7 @@ data LineCitInfo
     = LineCitInfo
     { lci_years :: ![T.Text]
     , lci_names :: ![T.Text]
-    , lci_full :: !T.Text
+    , lci_full :: ![T.Text]
     } deriving (Show, Eq)
 
 matchScore :: [T.Text] -> T.Text -> Double
@@ -261,6 +275,17 @@ matchScore search haystack =
                  filter (\y -> y `T.isInfixOf` haystack) search
              total = length search
          in (fromIntegral matches / fromIntegral total)
+
+fullScore :: [T.Text] -> T.Text -> Double
+fullScore search haystack =
+    if null search || T.null haystack
+    then 0
+    else maximum $ flip map search $ \s ->
+         if s `T.isPrefixOf` haystack
+         then 2
+         else if s `T.isInfixOf` haystack
+              then 0.5
+              else 0
 
 data CitInfoCand
     = CitInfoCand
@@ -280,20 +305,33 @@ bestCands =
           HM.insertWith (++) (cic_ref el) [el] hm
 
 extractCitInfoLines :: T.Text -> [CitMarkerCand] -> [CitInfoCand]
-extractCitInfoLines txt markerCands =
+extractCitInfoLines txtRaw markerCands =
     catMaybes $
     flip concatMap markerCands $ \mc -> flip map (cmc_references mc) $ \ref ->
     runMarkerCand mc ref
     where
-      allLines = fromIntegral $ length (map T.strip $ T.lines txt) + 1
+      isRefIntroLine :: T.Text -> Bool
+      isRefIntroLine ln =
+          ln =~ refSectionIntro
+      refSectionLines =
+          dropWhile (not . isRefIntroLine) $ filter (not . T.null) $
+          map T.strip $ T.lines txtRaw
+      allLines = fromIntegral $ length (map T.strip $ T.lines txtRaw) + 1
       runMarkerCand mc ref =
           let mp = mkMarkerCandMap mc ref
               (_, ubound) = cmc_range mc
-              rawLines = filter (not . T.null) $ map T.strip $ T.lines (T.drop ubound txt)
+              foundCitSection =
+                  not $ null refSectionLines
+              rawLines =
+                  if foundCitSection
+                  then refSectionLines
+                  else filter (not . T.null) $ map T.strip $ T.lines (T.drop ubound txtRaw)
               skippedLines = allLines - fromIntegral (length rawLines)
               mkPos :: Int -> Double
               mkPos idx =
-                  (skippedLines + fromIntegral idx) / allLines
+                  if foundCitSection
+                  then 1
+                  else (skippedLines + fromIntegral idx) / allLines
               cicCand =
                   sortOn (Down . cic_score) $ mapMaybe (handleLine mp . second mkPos) (zip rawLines [1..])
           in listToMaybe cicCand
@@ -308,23 +346,33 @@ extractCitInfoLines txt markerCands =
           let yearScore = matchScore (lci_years lci) line
               lowerLine = T.toLower line
               nameScore = matchScore (lci_names lci) lowerLine
-              fullScore
-                  | lci_full lci `T.isPrefixOf` line = 2
-                  | lci_full lci `T.isInfixOf` line = 0.5
-                  | otherwise = 0
+              fs = fullScore (lci_full lci) line
               lineScore =
                   let wordMatch w pts = if w `T.isInfixOf` line then pts else 0
                   in wordMatch "proceeding" 0.5 + wordMatch "isbn" 0.5
                      + wordMatch "doi" 0.5 + wordMatch "pp." 0.5
-              mainScore = (yearScore * 0.5) + (2 * nameScore) + fullScore + lineScore
+              mainScore = (yearScore * 0.5) + (2 * nameScore) + fs + lineScore
               totalScore = mainScore + (percPos * 0.3)
-          in if mainScore > 1.0 then Just (mkCand line (totalScore, (ref, mc))) else Nothing
+              oneMainMatch =
+                  yearScore > 0 || nameScore > 0 || fs > 0.5
+          in if mainScore > 1.0 && oneMainMatch
+             then Just (mkCand line (totalScore, (ref, mc)))
+             else Nothing
       mkMarkerCandMap mc ref =
           let (o, c) = cmc_markerPair mc
               years = extractYears ref
               names =
-                  filter (\t -> T.length t >= 2 && t `notElem` years) $
+                  filter (\t -> T.length t >= 2 && t `notElem` years && not (T.all isNumber t)) $
                   map (T.toLower . T.strip . T.filter (/= '.')) $
                   T.split (\ch -> ch == ',' || ch == '&') $ T.replace "et al" "" ref
-              full = T.singleton o <> ref <> T.singleton c
-          in (LineCitInfo years names full, ref, mc)
+              fullBase = T.singleton o <> ref <> T.singleton c
+              fullMore =
+                  if T.all isNumber ref && T.length ref <= 2
+                  then [ref <> "."]
+                  else []
+          in (LineCitInfo years names (fullBase : fullMore), ref, mc)
+
+-- regex taken from parscit
+refSectionIntro :: Regex
+refSectionIntro =
+    [reM|\b(References?|REFERENCES?|Bibliography|BIBLIOGRAPHY|References?\s+and\s+Notes?|References?\s+Cited|REFERENCES?\s+CITED|REFERENCES?\s+AND\s+NOTES?|LITERATURE?\s+CITED?):?\s*$|]

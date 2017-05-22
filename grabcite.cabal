@@ -22,6 +22,7 @@ library
                      , GrabCite.Stats
                      , GrabCite.Context
   other-modules:       Util.Pdf
+                     , Util.Regex
   build-depends:       base >= 4.7 && < 5,
                        bytestring >= 0.10,
                        process >= 1.4,
@@ -35,7 +36,10 @@ library
                        http-client,
                        containers,
                        mtl,
-                       hashable
+                       hashable,
+                       pcre-heavy,
+                       pcre-light,
+                       template-haskell
   default-language:    Haskell2010
 
 executable grabcite-server
