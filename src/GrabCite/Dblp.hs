@@ -1,8 +1,16 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
-module GrabCite.Dblp where
+module GrabCite.Dblp
+    ( DblpQuery(..)
+    , DblpPaper(..), DblpResult(..)
+    , queryDblp
+    )
+where
 
 import Data.Aeson
+import Data.Hashable
 import Data.Monoid
+import GHC.Generics
 import Network.HTTP.Client
 import Network.HTTP.Types.Status (statusCode)
 import Network.HTTP.Types.URI
@@ -13,7 +21,9 @@ import qualified Data.Text as T
 data DblpQuery
     = DblpQuery
     { dq_query :: !T.Text
-    } deriving (Show, Eq)
+    } deriving (Show, Eq, Generic)
+
+instance Hashable DblpQuery
 
 data DblpPaper
     = DblpPaper
@@ -22,7 +32,9 @@ data DblpPaper
     , db_url :: !(Maybe T.Text)
     , db_id :: !T.Text
     , db_score :: !T.Text
-    } deriving (Show, Eq)
+    } deriving (Show, Eq, Generic)
+
+instance Hashable DblpPaper
 
 instance FromJSON DblpPaper where
     parseJSON =
@@ -39,7 +51,9 @@ instance FromJSON DblpPaper where
 data DblpResult
     = DblpResult
     { dr_papers :: ![DblpPaper]
-    } deriving (Show, Eq)
+    } deriving (Show, Eq, Generic)
+
+instance Hashable DblpResult
 
 instance FromJSON DblpResult where
     parseJSON =

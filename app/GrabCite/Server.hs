@@ -2,6 +2,7 @@
 module GrabCite.Server ( runServer ) where
 
 import GrabCite
+import GrabCite.Context
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.Layout
@@ -57,4 +58,5 @@ handleText txt =
 handleResults :: ExtractionResult (Maybe DblpPaper) -> Action ()
 handleResults er =
     do let stats = getCitStats er
-       lucid $ resultsPage er stats
+           contexts = getContextedMarkers 100 (er_nodes er)
+       lucid $ resultsPage er stats contexts

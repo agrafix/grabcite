@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module GrabCite.Layout where
 
+import GrabCite.Context
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.Stats
@@ -25,8 +26,8 @@ mainPage =
                   do input_ [type_ "file", name_ "file"]
                      input_ [type_ "submit", value_ "Extract"]
 
-resultsPage :: ExtractionResult (Maybe DblpPaper) -> CitationStats -> Html ()
-resultsPage er stats =
+resultsPage :: ExtractionResult (Maybe DblpPaper) -> CitationStats -> [ContextedMarker] -> Html ()
+resultsPage er stats cmarkers =
     html_ $
     do head_ $
            title_ "GrabCite :: Reference extraction"
@@ -55,3 +56,10 @@ resultsPage er stats =
               ul_ $
                   forM_ (er_citations er) $ \cic ->
                   li_ $ toHtml (cic_line cic)
+              h2_ "Markers with context"
+              ul_ $
+                  forM_ cmarkers $ \cm ->
+                  li_ $
+                  do toHtml (mc_before cm)
+                     b_ (toHtml $ " [" <> mc_dblpId cm <> "] ")
+                     toHtml (mc_after cm)

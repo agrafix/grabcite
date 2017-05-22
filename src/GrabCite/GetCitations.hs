@@ -6,6 +6,7 @@ module GrabCite.GetCitations
     , ExtractionResult(..)
     , CitInfoCand(..), CitMarkerCand(..)
     , ContentNode(..), ContentRef(..)
+    , getTextNode, getRefNode
     )
 where
 
@@ -62,6 +63,18 @@ data ContentNode t
     = CnText !T.Text
     | CnRef !(ContentRef t)
     deriving (Show, Eq)
+
+getTextNode :: ContentNode t -> Maybe T.Text
+getTextNode cn =
+    case cn of
+      CnText x -> Just x
+      _ -> Nothing
+
+getRefNode :: ContentNode t -> Maybe (ContentRef t)
+getRefNode cn =
+    case cn of
+      CnRef r -> Just r
+      _ -> Nothing
 
 data ExtractionResult t
     = ExtractionResult
