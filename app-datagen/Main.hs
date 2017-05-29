@@ -17,6 +17,7 @@ import GrabCite.GlobalId
 import Control.Concurrent.Async
 import Control.Exception
 import Control.Logger.Simple
+import Control.Monad
 import Data.Aeson
 import Data.Maybe
 import Options.Generic
@@ -29,6 +30,8 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Builder as TLB
 import qualified System.FilePath as FP
 
 data Config w
@@ -37,8 +40,9 @@ data Config w
     , c_recursive :: w ::: Bool <?> "Should we recursively look for papers in input dir?"
     , c_outDir :: w ::: FilePath <?> "Directory to write the output to"
     , c_jobs :: w ::: Int <?> "Number of concurrent tasks to run"
-    , c_context :: w ::: Int <?> "Number of words before and after to consider as context"
+    , c_context :: w ::: Int <?> "Number of words before and after to consider as context (context mode)"
     , c_debug :: w ::: Bool <?> "Enable debug output"
+    , c_writeContexts :: w ::: Bool <?> "Should context files be written"
     } deriving (Generic)
 
 instance ParseRecord (Config Wrapped) where
@@ -77,10 +81,10 @@ main =
        state <- loadState outDir
        let todoPdfs = filter (not . flip S.member (s_completed state)) $ F.toList out
        logNote $ "Unhandled pdfs: " <> showText (length todoPdfs)
-       workLoop (c_context cfg) (c_jobs cfg) outDir state todoPdfs
+       workLoop (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state todoPdfs
 
-workLoop :: Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> IO ()
-workLoop ctxWords jobs outDir st todoQueue =
+workLoop :: Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> IO ()
+workLoop ctxWrite ctxWords jobs outDir st todoQueue =
     do let upNext = take jobs todoQueue
            todoQueue' = drop jobs todoQueue
        cmarkers <-
@@ -92,25 +96,32 @@ workLoop ctxWords jobs outDir st todoQueue =
                 Left (ex :: SomeException) ->
                     do logError ("Failed to work on " <> showText f <> ": " <> showText ex)
                        pure Nothing
-                Right ok ->
-                    do forConcurrently_ (zip ok [1..]) $ \(mc, idx :: Int) ->
-                           do let fbase = T.pack $ FP.dropExtension $ toFilePath $ filename f
-                              fileName <-
-                                  parseRelFile . T.unpack $
-                                  fbase <> "_" <> textGlobalId (mc_id mc)
-                                  <> "_" <> showText idx <> ".txt"
-                              let fpTarget = outDir </> fileName
-                              T.writeFile (toFilePath fpTarget) $
+                Right (ok, full) ->
+                    do fbase <-
+                           parseRelFile $ FP.dropExtension $ toFilePath $ filename f
+                       fullWriter <-
+                           async $
+                           do let fullFile = toFilePath (outDir </> fbase) <> ".txt"
+                              T.writeFile fullFile full
+                              logInfo ("Wrote full text to " <> showText fullFile)
+                       when ctxWrite $
+                           forConcurrently_ (zip ok [1..]) $ \(mc, idx :: Int) ->
+                           do let fpTarget =
+                                      toFilePath (outDir </> fbase)
+                                      <> "_" <> T.unpack (textGlobalId (mc_id mc))
+                                      <> "_" <> show idx <> ".txt"
+                              T.writeFile fpTarget $
                                   mc_before mc
                                   <> " "
                                   <> "[" <> textGlobalId (mc_id mc) <> "]"
                                   <> " "
                                   <> mc_after mc
+                       wait fullWriter
                        pure $ Just (f, ok)
        let st' = foldl' updateState st cmarkers
        writeState outDir st'
        if not (null todoQueue')
-          then workLoop ctxWords jobs outDir st' todoQueue'
+          then workLoop ctxWrite ctxWords jobs outDir st' todoQueue'
           else do logInfo "All done"
                   pure ()
 
@@ -139,15 +150,34 @@ updateState st (f, cxm) =
                }
     in foldl' updateCxm baseSt cxm
 
-handlePdf :: Int -> Path Abs File -> IO [ContextedMarker]
+handlePdf :: Int -> Path Abs File -> IO ([ContextedMarker], T.Text)
 handlePdf ctxWords fp =
     do cits <- getCitationsFromPdf fp
        case cits of
          Nothing ->
              do logError ("Failed to get citations from " <> showText fp)
-                pure []
+                pure ([], "")
          Just er ->
-             pure $ getContextedMarkers ctxWords (fmap globalCitId $ er_nodes er)
+             let nodes = fmap globalCitId $ er_nodes er
+             in pure
+                  ( getContextedMarkers ctxWords nodes
+                  , mkTextBody nodes
+                  )
+
+mkTextBody :: [ContentNode GlobalId] -> T.Text
+mkTextBody nds =
+    TL.toStrict $ TLB.toLazyText $ loop nds mempty
+    where
+      loop nodes accum =
+          case nodes of
+            [] -> accum
+            (node : more) ->
+                case node of
+                  CnText txt -> loop more (accum <> TLB.fromText txt)
+                  CnRef ref ->
+                      let refMarker =
+                              " <" <> textGlobalId (cr_tag ref) <> "> "
+                      in loop more (accum <> TLB.fromText refMarker)
 
 handleDir :: FilePath -> IO (Path Rel Dir)
 handleDir fp
