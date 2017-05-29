@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE DeriveFunctor #-}
 module GrabCite.GetCitations
     ( extractCitations
     , ExtractionResult(..)
@@ -61,12 +62,12 @@ data ContentRef t
     , cr_origMarker :: !T.Text
     , cr_score :: !Double
     , cr_tag :: !t
-    } deriving (Show, Eq)
+    } deriving (Show, Eq, Functor)
 
 data ContentNode t
     = CnText !T.Text
     | CnRef !(ContentRef t)
-    deriving (Show, Eq)
+    deriving (Show, Eq, Functor)
 
 getTextNode :: ContentNode t -> Maybe T.Text
 getTextNode cn =

@@ -3,20 +3,19 @@ module GrabCite.Annotate
     )
 where
 
+import GrabCite.Dblp
+import GrabCite.GetCitations
+import Util.Text
+
 import Control.Exception
 import Control.Monad
 import Data.Bifunctor
 import Data.Char
 import Data.IORef
 import Data.Monoid
-import GrabCite.Dblp
-import GrabCite.GetCitations
 import Network.HTTP.Client
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
-
-textRemovePunc :: T.Text -> T.Text
-textRemovePunc = T.map (\ch -> if ch `elem` "()[],.?!-;\'\"" then ' ' else ch)
 
 annotateReferences :: [ContentNode t] -> IO [ContentNode (Maybe DblpPaper)]
 annotateReferences contentNodes =
@@ -51,7 +50,8 @@ annotateReferences contentNodes =
                         then do putStrLn $
                                     "Search string to short: " ++ show q
                                 pure (CnRef $ r { cr_tag = Nothing })
-                        else do putStrLn ("Will annotate: " ++ show (cr_info r) ++ " using: "++ show strWords ++ " ... " ++ show q)
+                        else do putStrLn ("Will annotate: " ++ show (cr_info r)
+                                          ++ " using: "++ show strWords ++ " ... " ++ show q)
                                 res <-
                                     runQuery mgr cache q
                                 case join $ first showEx res of

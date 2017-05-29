@@ -5,6 +5,7 @@ import GrabCite
 import GrabCite.Context
 import GrabCite.Dblp
 import GrabCite.GetCitations
+import GrabCite.GlobalId
 import GrabCite.Layout
 import GrabCite.Stats
 
@@ -58,5 +59,5 @@ handleText txt =
 handleResults :: ExtractionResult (Maybe DblpPaper) -> Action ()
 handleResults er =
     do let stats = getCitStats er
-           contexts = getContextedMarkers 100 (er_nodes er)
+           contexts = getContextedMarkers 100 (globalCitId <$> er_nodes er)
        lucid $ resultsPage er stats contexts

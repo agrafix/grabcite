@@ -4,6 +4,7 @@ module GrabCite.Layout where
 import GrabCite.Context
 import GrabCite.Dblp
 import GrabCite.GetCitations
+import GrabCite.GlobalId
 import GrabCite.Stats
 
 import Control.Monad
@@ -61,5 +62,5 @@ resultsPage er stats cmarkers =
                   forM_ cmarkers $ \cm ->
                   li_ $
                   do toHtml (mc_before cm)
-                     b_ (toHtml $ " [" <> mc_dblpId cm <> "] ")
+                     b_ (toHtml $ " [" <> textGlobalId (mc_id cm) <> "] ")
                      toHtml (mc_after cm)

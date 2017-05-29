@@ -12,6 +12,7 @@ import Data.List
 import GrabCite
 import GrabCite.Context
 import GrabCite.GetCitations
+import GrabCite.GlobalId
 
 import Control.Concurrent.Async
 import Control.Exception
@@ -96,12 +97,13 @@ workLoop ctxWords jobs outDir st todoQueue =
                            do let fbase = T.pack $ FP.dropExtension $ toFilePath $ filename f
                               fileName <-
                                   parseRelFile . T.unpack $
-                                  fbase <> "_" <> mc_dblpId mc <> "_" <> showText idx <> ".txt"
+                                  fbase <> "_" <> textGlobalId (mc_id mc)
+                                  <> "_" <> showText idx <> ".txt"
                               let fpTarget = outDir </> fileName
                               T.writeFile (toFilePath fpTarget) $
                                   mc_before mc
                                   <> " "
-                                  <> "[DBLP:" <> mc_dblpId mc <> "]"
+                                  <> "[" <> textGlobalId (mc_id mc) <> "]"
                                   <> " "
                                   <> mc_after mc
                        pure $ Just (f, ok)
@@ -125,7 +127,7 @@ updateState st (f, cxm) =
                 wordAfter =
                     listToMaybe $ T.words (mc_after c)
             in s
-               { s_refCount = HM.insertWith (+) (mc_dblpId c) 1 (s_refCount s)
+               { s_refCount = HM.insertWith (+) (textGlobalId (mc_id c)) 1 (s_refCount s)
                , s_wordPrior =
                        case wordPrior of
                          Just wp -> HM.insertWith (+) wp 1 (s_wordPrior s)
@@ -145,7 +147,7 @@ handlePdf ctxWords fp =
              do logError ("Failed to get citations from " <> showText fp)
                 pure []
          Just er ->
-             pure $ getContextedMarkers ctxWords (er_nodes er)
+             pure $ getContextedMarkers ctxWords (fmap globalCitId $ er_nodes er)
 
 handleDir :: FilePath -> IO (Path Rel Dir)
 handleDir fp

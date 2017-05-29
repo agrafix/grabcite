@@ -4,8 +4,8 @@ module GrabCite.Context
     )
 where
 
-import GrabCite.Dblp
 import GrabCite.GetCitations
+import GrabCite.GlobalId
 
 import Data.Maybe
 import Data.Monoid
@@ -14,18 +14,18 @@ import qualified Data.Text as T
 data ContextedMarker
     = ContextedMarker
     { mc_before :: !T.Text
-    , mc_dblpId :: !T.Text
+    , mc_id :: !GlobalId
     , mc_after :: !T.Text
     } deriving (Show, Eq)
 
 data WorkState
     = WorkState
     { ws_out :: ![ContextedMarker]
-    , ws_prev :: ![ContentNode (Maybe DblpPaper)]
-    , ws_next :: ![ContentNode (Maybe DblpPaper)]
+    , ws_prev :: ![ContentNode GlobalId]
+    , ws_next :: ![ContentNode GlobalId]
     }
 
-getContextedMarkers :: Int -> [ContentNode (Maybe DblpPaper)] -> [ContextedMarker]
+getContextedMarkers :: Int -> [ContentNode GlobalId] -> [ContextedMarker]
 getContextedMarkers wordsToTake allNodes =
     loop (WorkState [] (reverse allNodes) [])
     where
@@ -45,24 +45,21 @@ getContextedMarkers wordsToTake allNodes =
                               st
                               { ws_prev = rest
                               }
-                      in case cr_tag r of
-                           Nothing -> loop st'
-                           Just t ->
-                               let nextText =
-                                       takeNodesUntilWords wordsToTake (id, id) (<>) $
-                                       mapMaybe getTextNode (ws_next st)
-                                   prevText =
-                                       takeNodesUntilWords wordsToTake (reverse, reverse) (flip (<>)) $
-                                       mapMaybe getTextNode (ws_prev st)
-                                   marker =
-                                       ContextedMarker
-                                       { mc_before = prevText
-                                       , mc_after = nextText
-                                       , mc_dblpId = db_id t
-                                       }
-                               in loop $ st'
-                                  { ws_out = (marker : ws_out st')
-                                  }
+                      in let nextText =
+                                 takeNodesUntilWords wordsToTake (id, id) (<>) $
+                                 mapMaybe getTextNode (ws_next st)
+                             prevText =
+                                 takeNodesUntilWords wordsToTake (reverse, reverse) (flip (<>)) $
+                                 mapMaybe getTextNode (ws_prev st)
+                             marker =
+                                 ContextedMarker
+                                 { mc_before = prevText
+                                 , mc_after = nextText
+                                 , mc_id = cr_tag r
+                                 }
+                         in loop $ st'
+                            { ws_out = (marker : ws_out st')
+                            }
 
 type Bidir a = ([a] -> [a], [a] -> [a])
 
