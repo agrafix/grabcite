@@ -11,6 +11,7 @@ import GrabCite.GetCitations
 import Util.Text
 
 import Control.Applicative
+import Control.Monad
 import Data.Char
 import Data.List
 import Data.Maybe
@@ -40,7 +41,7 @@ globalCitId cn =
       CnRef ref ->
           let gid =
                   fromMaybe (mkCustom ref) $
-                  (GiDblp <$> (db_id <$> cr_tag ref))
+                  (GiDblp <$> (join $ db_url <$> cr_tag ref))
                   <|> getDoi ref
                   <|> getArxiv ref
           in CnRef $ ref { cr_tag = gid }

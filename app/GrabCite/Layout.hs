@@ -50,7 +50,8 @@ resultsPage er stats cmarkers =
                                 Just uri ->
                                     a_ [href_ uri] $ toHtml (cr_origMarker ref)
                                 Nothing ->
-                                    toHtml $ "[DBLP:" <> db_id paperInfo <> "]"
+                                    toHtml $
+                                    (cr_origMarker ref) <> " (DBLP)"
                           Nothing ->
                               toHtml (cr_origMarker ref)
               h2_ "Detected citations (Original Form)"

@@ -30,7 +30,6 @@ data DblpPaper
     { dp_authors :: ![T.Text]
     , dp_title :: !T.Text
     , db_url :: !(Maybe T.Text)
-    , db_id :: !T.Text
     , db_score :: !T.Text
     } deriving (Show, Eq, Generic)
 
@@ -39,14 +38,13 @@ instance Hashable DblpPaper
 instance FromJSON DblpPaper where
     parseJSON =
         withObject "DblpPaper" $ \o ->
-        do pid <- o .: "@id"
-           info <- o .: "info"
+        do info <- o .: "info"
            authors <- info .: "authors"
            authorList <- authors .: "author"
            title <- info .: "title"
            url <- info .:? "url"
            score <- o .: "@score"
-           pure (DblpPaper authorList title url pid score)
+           pure (DblpPaper authorList title url score)
 
 data DblpResult
     = DblpResult
