@@ -14,21 +14,22 @@ import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Traversable as T
 
-getCitationsFromPdf :: Path t File -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
-getCitationsFromPdf fp =
+getCitationsFromPdf :: RefCache -> Path t File -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
+getCitationsFromPdf rc fp =
     do r <- extractTextFromPdf fp
-       T.mapM go r
+       T.mapM (go rc) r
 
-getCitationsFromPdfBs :: BS.ByteString -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
-getCitationsFromPdfBs bs =
+getCitationsFromPdfBs ::
+    RefCache -> BS.ByteString -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
+getCitationsFromPdfBs rc bs =
     do r <- extractTextFromPdfBs bs
-       T.mapM go r
+       T.mapM (go rc) r
 
-getCitationsFromPlainText :: T.Text -> IO (ExtractionResult (Maybe DblpPaper))
+getCitationsFromPlainText :: RefCache -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
 getCitationsFromPlainText = go
 
-go :: T.Text -> IO (ExtractionResult (Maybe DblpPaper))
-go txt =
+go :: RefCache -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
+go rc txt =
     do let extracted = extractCitations txt
-       nodes' <- annotateReferences (er_nodes extracted)
+       nodes' <- annotateReferences rc (er_nodes extracted)
        pure $ extracted { er_nodes = nodes' }

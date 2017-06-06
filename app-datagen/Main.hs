@@ -6,10 +6,12 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators      #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Main where
 
 import Data.List
 import GrabCite
+import GrabCite.Annotate
 import GrabCite.Context
 import GrabCite.GetCitations
 import GrabCite.GlobalId
@@ -81,17 +83,18 @@ main =
        state <- loadState outDir
        let todoPdfs = filter (not . flip S.member (s_completed state)) $ F.toList out
        logNote $ "Unhandled pdfs: " <> showText (length todoPdfs)
-       workLoop (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state todoPdfs
+       withRefCache (outDir </> [relfile|ref_cache.json|]) $
+           workLoop (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state todoPdfs
 
-workLoop :: Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> IO ()
-workLoop ctxWrite ctxWords jobs outDir st todoQueue =
+workLoop :: Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> RefCache -> IO ()
+workLoop ctxWrite ctxWords jobs outDir st todoQueue rc =
     do let upNext = take jobs todoQueue
            todoQueue' = drop jobs todoQueue
        cmarkers <-
            fmap catMaybes $
            forConcurrently upNext $ \f ->
            do cm <-
-                  try $! handlePdf ctxWords f
+                  try $! handlePdf rc ctxWords f
               case cm of
                 Left (ex :: SomeException) ->
                     do logError ("Failed to work on " <> showText f <> ": " <> showText ex)
@@ -121,7 +124,7 @@ workLoop ctxWrite ctxWords jobs outDir st todoQueue =
        let st' = foldl' updateState st cmarkers
        writeState outDir st'
        if not (null todoQueue')
-          then workLoop ctxWrite ctxWords jobs outDir st' todoQueue'
+          then workLoop ctxWrite ctxWords jobs outDir st' todoQueue' rc
           else do logInfo "All done"
                   pure ()
 
@@ -150,9 +153,9 @@ updateState st (f, cxm) =
                }
     in foldl' updateCxm baseSt cxm
 
-handlePdf :: Int -> Path Abs File -> IO ([ContextedMarker], T.Text)
-handlePdf ctxWords fp =
-    do cits <- getCitationsFromPdf fp
+handlePdf :: RefCache -> Int -> Path Abs File -> IO ([ContextedMarker], T.Text)
+handlePdf rc ctxWords fp =
+    do cits <- getCitationsFromPdf rc fp
        case cits of
          Nothing ->
              do logError ("Failed to get citations from " <> showText fp)

@@ -2,6 +2,7 @@
 module GrabCite.Server ( runServer ) where
 
 import GrabCite
+import GrabCite.Annotate
 import GrabCite.Context
 import GrabCite.Dblp
 import GrabCite.GetCitations
@@ -19,14 +20,15 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 
 data MySession = EmptySession
-data MyAppState = MyAppState
+type MyAppState = RefCache
 
 type App = SpockM () MySession MyAppState ()
 type Action = SpockAction () MySession MyAppState
 
 runServer :: Int -> IO ()
 runServer port =
-    do spockCfg <- defaultSpockCfg EmptySession PCNoDatabase MyAppState
+    withMemRefCache $ \rc ->
+    do spockCfg <- defaultSpockCfg EmptySession PCNoDatabase rc
        runSpock port (spock spockCfg app)
 
 app :: App
@@ -47,14 +49,16 @@ app =
 handleFile :: UploadedFile -> Action ()
 handleFile uf =
     do path <- liftIO $ parseAbsFile (uf_tempLocation uf)
-       result <- liftIO $ getCitationsFromPdf path
+       st <- getState
+       result <- liftIO $ getCitationsFromPdf st path
        case result of
          Nothing -> text "Invalid PDF"
          Just er -> handleResults er
 
 handleText :: T.Text -> Action ()
 handleText txt =
-    liftIO (getCitationsFromPlainText txt) >>= handleResults
+    do st <- getState
+       liftIO (getCitationsFromPlainText st txt) >>= handleResults
 
 handleResults :: ExtractionResult (Maybe DblpPaper) -> Action ()
 handleResults er =

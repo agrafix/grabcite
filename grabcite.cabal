@@ -41,7 +41,10 @@ library
                        hashable,
                        pcre-heavy,
                        pcre-light,
-                       template-haskell
+                       template-haskell,
+                       timespan,
+                       directory >= 1.3,
+                       async
   default-language:    Haskell2010
   ghc-options:         -Wall
 

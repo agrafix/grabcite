@@ -46,6 +46,19 @@ instance FromJSON DblpPaper where
            score <- o .: "@score"
            pure (DblpPaper authorList title url score)
 
+instance ToJSON DblpPaper where
+    toJSON paper =
+        object
+        [ "@score" .= db_score paper
+        , "info" .=
+            object
+            [ "authors" .=
+                object [ "author" .= dp_authors paper ]
+            , "title" .= dp_title paper
+            , "url" .= db_url paper
+            ]
+        ]
+
 data DblpResult
     = DblpResult
     { dr_papers :: ![DblpPaper]
@@ -60,6 +73,18 @@ instance FromJSON DblpResult where
            hits <- r .: "hits"
            hitList <- hits .: "hit"
            pure (DblpResult hitList)
+
+instance ToJSON DblpResult where
+    toJSON papers =
+        object
+        [ "result" .=
+            object
+            [ "hits" .=
+                object
+                [ "hit" .= dr_papers papers
+                ]
+            ]
+        ]
 
 toQueryUrl :: DblpQuery -> String
 toQueryUrl q =
