@@ -22,8 +22,8 @@ library
                      , GrabCite.Stats
                      , GrabCite.Context
                      , GrabCite.GlobalId
-  other-modules:       Util.Pdf
                      , Util.Regex
+  other-modules:       Util.Pdf
                      , Util.Text
   build-depends:       base >= 4.7 && < 5,
                        bytestring >= 0.10,
@@ -82,6 +82,7 @@ executable grabcite-datagen
                      , text
                      , async
                      , simple-logger
+                     , pcre-heavy
   default-language:    Haskell2010
 
 test-suite grabcite-test

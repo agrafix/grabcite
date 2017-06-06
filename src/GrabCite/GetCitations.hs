@@ -88,8 +88,8 @@ data ExtractionResult t
     , er_nodes :: ![ContentNode t]
     } deriving (Show, Eq)
 
-extractCitations :: T.Text -> ExtractionResult ()
-extractCitations txt =
+extractCitations :: T.Text -> (T.Text -> T.Text) -> ExtractionResult ()
+extractCitations txt preNodeSplit =
     let markerCands = collectMarkerCands txt
         withInfo = extractCitInfoLines txt markerCands
         matchedCands = bestCands withInfo
@@ -97,7 +97,7 @@ extractCitations txt =
     in ExtractionResult
        { er_citations = matchedCands
        , er_markers = rMarkers
-       , er_nodes = toNodes (removeReferencesSection txt) matchedCands rMarkers
+       , er_nodes = toNodes (preNodeSplit $ removeReferencesSection txt) matchedCands rMarkers
        }
 
 removeReferencesSection :: T.Text -> T.Text

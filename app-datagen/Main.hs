@@ -7,24 +7,28 @@
 {-# LANGUAGE TypeOperators      #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 module Main where
 
-import Data.List
 import GrabCite
 import GrabCite.Annotate
 import GrabCite.Context
 import GrabCite.GetCitations
 import GrabCite.GlobalId
+import Util.Regex
 
 import Control.Concurrent.Async
 import Control.Exception
 import Control.Logger.Simple
 import Control.Monad
 import Data.Aeson
+import Data.Char
+import Data.List
 import Data.Maybe
 import Options.Generic
 import Path
 import Path.IO
+import Text.Regex.PCRE.Heavy
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HM
@@ -83,10 +87,73 @@ main =
        state <- loadState outDir
        let todoPdfs = filter (not . flip S.member (s_completed state)) $ F.toList out
        logNote $ "Unhandled pdfs: " <> showText (length todoPdfs)
-       withRefCache (outDir </> [relfile|ref_cache.json|]) $
+       withRefCache (outDir </> [relfile|ref_cache.json|]) $ \rc ->
            workLoop (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state todoPdfs
+           (Cfg rc id)
 
-workLoop :: Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> RefCache -> IO ()
+sSplit :: (Char -> (T.Text, T.Text) -> Bool) -> T.Text -> [T.Text]
+sSplit decisionFun txtIn =
+    filter (not . T.null) $ map (TL.toStrict . TL.strip) $ reverse $ go [] mempty txtIn
+    where
+      go output current state =
+          case T.uncons state of
+            Nothing -> (TLB.toLazyText current : output)
+            Just (c, more)
+                | c == '.' || c == '?' || c == '!' ->
+                      let curr = TLB.toLazyText current
+                          currL = TL.length curr
+                          toDrop = currL - 20
+                          alreadyRead = TL.toStrict $ TL.drop (min 0 toDrop) curr
+                          afterDot = T.take 20 more
+                          shouldSplit = decisionFun c (alreadyRead, afterDot)
+                      in if shouldSplit
+                            then go (curr <> TL.singleton c : output) mempty more
+                            else go output (current <> TLB.singleton c) more
+                | otherwise -> go output (current <> TLB.singleton c) more
+
+sentenceSplitter :: T.Text -> T.Text
+sentenceSplitter txtIn =
+    T.intercalate "\n============\n" $ mapMaybe cleanSentence $
+    filter isValidSentence $ sSplit sentenceDecide txtIn
+
+cleanSentence :: T.Text -> Maybe T.Text
+cleanSentence tx =
+    let tLines = filter goodLine . T.lines $ tx
+        lineCount = length tLines
+    in if lineCount == 0 || lineCount > 4
+       then Nothing
+       else Just (gsub multiSpace (T.singleton ' ') $ T.intercalate " " tLines)
+    where
+      goodLine x =
+          not (T.null x) && not (x =~ sectionTitleLine)
+
+isValidSentence :: T.Text -> Bool
+isValidSentence txt
+    | T.any (\c -> c =='\f' || c == '^' || c == '@') txt = False
+    | otherwise = True
+
+sentenceDecide :: Char -> (T.Text, T.Text) -> Bool
+sentenceDecide c (before, after)
+    | c == '!' = True
+    | c == '?' = True
+    | localDots beforeRev || localDots after = False
+    | noSpace beforeRev && noSpace after = False
+    | noSpace beforeRev && beginsCapital after = True
+    | isAbbrev beforeRev = False
+    | otherwise = True
+    where
+      beginsCapital =
+          T.all isUpper . T.take 1 . T.strip
+      noSpace =
+          T.all (not . isSpace) . T.take 1
+      isAbbrev x =
+          let l = T.takeWhile (not . isSpace) $ T.strip x
+          in T.length l <= 3 || (T.all isUpper l && T.length l < 5)
+      localDots =
+          T.any (\cx -> cx =='.' || cx == ',') . T.take 3
+      beforeRev = T.reverse before
+
+workLoop :: Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> Cfg -> IO ()
 workLoop ctxWrite ctxWords jobs outDir st todoQueue rc =
     do let upNext = take jobs todoQueue
            todoQueue' = drop jobs todoQueue
@@ -153,7 +220,7 @@ updateState st (f, cxm) =
                }
     in foldl' updateCxm baseSt cxm
 
-handlePdf :: RefCache -> Int -> Path Abs File -> IO ([ContextedMarker], T.Text)
+handlePdf :: Cfg -> Int -> Path Abs File -> IO ([ContextedMarker], T.Text)
 handlePdf rc ctxWords fp =
     do cits <- getCitationsFromPdf rc fp
        case cits of
@@ -164,7 +231,7 @@ handlePdf rc ctxWords fp =
              let nodes = fmap globalCitId $ er_nodes er
              in pure
                   ( getContextedMarkers ctxWords nodes
-                  , mkTextBody nodes
+                  , sentenceSplitter $ mkTextBody nodes
                   )
 
 mkTextBody :: [ContentNode GlobalId] -> T.Text
@@ -228,3 +295,11 @@ writeState outDir st =
     do let fp = toFilePath (mkStateFile outDir)
        logDebug $ "Writing current state to " <> showText fp
        BSL.writeFile fp (encode st)
+
+sectionTitleLine :: Regex
+sectionTitleLine =
+    [reM|^([0-9]+(\.[0-9]+(\.[0-9]+(\.[0-9]+)?)?)?\s+)?[A-Z &\-,\.]+$|]
+
+multiSpace :: Regex
+multiSpace =
+    [re|\s\s+|]

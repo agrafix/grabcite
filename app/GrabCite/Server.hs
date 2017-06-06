@@ -20,7 +20,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 
 data MySession = EmptySession
-type MyAppState = RefCache
+type MyAppState = Cfg
 
 type App = SpockM () MySession MyAppState ()
 type Action = SpockAction () MySession MyAppState
@@ -28,7 +28,7 @@ type Action = SpockAction () MySession MyAppState
 runServer :: Int -> IO ()
 runServer port =
     withMemRefCache $ \rc ->
-    do spockCfg <- defaultSpockCfg EmptySession PCNoDatabase rc
+    do spockCfg <- defaultSpockCfg EmptySession PCNoDatabase (Cfg rc id)
        runSpock port (spock spockCfg app)
 
 app :: App

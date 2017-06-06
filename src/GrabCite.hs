@@ -1,6 +1,7 @@
 module GrabCite
     ( getCitationsFromPdf, getCitationsFromPdfBs
     , getCitationsFromPlainText
+    , Cfg(..)
     )
 where
 
@@ -14,22 +15,28 @@ import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Traversable as T
 
-getCitationsFromPdf :: RefCache -> Path t File -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
+data Cfg
+    = Cfg
+    { c_refCache :: !RefCache
+    , c_preNodeSplit :: !(T.Text -> T.Text)
+    }
+
+getCitationsFromPdf :: Cfg -> Path t File -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
 getCitationsFromPdf rc fp =
     do r <- extractTextFromPdf fp
        T.mapM (go rc) r
 
 getCitationsFromPdfBs ::
-    RefCache -> BS.ByteString -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
+    Cfg -> BS.ByteString -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
 getCitationsFromPdfBs rc bs =
     do r <- extractTextFromPdfBs bs
        T.mapM (go rc) r
 
-getCitationsFromPlainText :: RefCache -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
+getCitationsFromPlainText :: Cfg -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
 getCitationsFromPlainText = go
 
-go :: RefCache -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
+go :: Cfg -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
 go rc txt =
-    do let extracted = extractCitations txt
-       nodes' <- annotateReferences rc (er_nodes extracted)
+    do let extracted = extractCitations txt (c_preNodeSplit rc)
+       nodes' <- annotateReferences (c_refCache rc) (er_nodes extracted)
        pure $ extracted { er_nodes = nodes' }
