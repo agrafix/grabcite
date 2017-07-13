@@ -1,6 +1,6 @@
 module GrabCite
     ( getCitationsFromPdf, getCitationsFromPdfBs
-    , getCitationsFromPlainText
+    , getCitationsFromPlainText, getCitationsFromTextFile
     , Cfg(..)
     )
 where
@@ -13,6 +13,7 @@ import Util.Pdf
 import Path
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Data.Traversable as T
 
 data Cfg
@@ -20,6 +21,11 @@ data Cfg
     { c_refCache :: !RefCache
     , c_preNodeSplit :: !(T.Text -> T.Text)
     }
+
+getCitationsFromTextFile :: Cfg -> Path t File -> IO (ExtractionResult (Maybe DblpPaper))
+getCitationsFromTextFile rc fp =
+    do r <- T.readFile (toFilePath fp)
+       go rc r
 
 getCitationsFromPdf :: Cfg -> Path t File -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
 getCitationsFromPdf rc fp =

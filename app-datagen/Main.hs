@@ -44,6 +44,7 @@ data Config w
     = Config
     { c_inDir :: w ::: FilePath <?> "Directory holding the paper PDFs"
     , c_recursive :: w ::: Bool <?> "Should we recursively look for papers in input dir?"
+    , c_textMode :: w ::: Bool <?> "Is the directory already holding text files?"
     , c_outDir :: w ::: FilePath <?> "Directory to write the output to"
     , c_jobs :: w ::: Int <?> "Number of concurrent tasks to run"
     , c_context :: w ::: Int <?> "Number of words before and after to consider as context (context mode)"
@@ -88,8 +89,8 @@ main =
        let todoPdfs = filter (not . flip S.member (s_completed state)) $ F.toList out
        logNote $ "Unhandled pdfs: " <> showText (length todoPdfs)
        withRefCache (outDir </> [relfile|ref_cache.json|]) $ \rc ->
-           workLoop (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state todoPdfs
-           (Cfg rc id)
+           workLoop (c_textMode cfg) (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state
+           todoPdfs (Cfg rc id)
 
 sSplit :: (Char -> (T.Text, T.Text) -> Bool) -> T.Text -> [T.Text]
 sSplit decisionFun txtIn =
@@ -153,15 +154,15 @@ sentenceDecide c (before, after)
           T.any (\cx -> cx =='.' || cx == ',') . T.take 3
       beforeRev = T.reverse before
 
-workLoop :: Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> Cfg -> IO ()
-workLoop ctxWrite ctxWords jobs outDir st todoQueue rc =
+workLoop :: Bool -> Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> Cfg -> IO ()
+workLoop textMode ctxWrite ctxWords jobs outDir st todoQueue rc =
     do let upNext = take jobs todoQueue
            todoQueue' = drop jobs todoQueue
        cmarkers <-
            fmap catMaybes $
            forConcurrently upNext $ \f ->
            do cm <-
-                  try $! handlePdf rc ctxWords f
+                  try $! handlePdf textMode rc ctxWords f
               case cm of
                 Left (ex :: SomeException) ->
                     do logError ("Failed to work on " <> showText f <> ": " <> showText ex)
@@ -191,7 +192,7 @@ workLoop ctxWrite ctxWords jobs outDir st todoQueue rc =
        let st' = foldl' updateState st cmarkers
        writeState outDir st'
        if not (null todoQueue')
-          then workLoop ctxWrite ctxWords jobs outDir st' todoQueue' rc
+          then workLoop textMode ctxWrite ctxWords jobs outDir st' todoQueue' rc
           else do logInfo "All done"
                   pure ()
 
@@ -220,9 +221,12 @@ updateState st (f, cxm) =
                }
     in foldl' updateCxm baseSt cxm
 
-handlePdf :: Cfg -> Int -> Path Abs File -> IO ([ContextedMarker], T.Text)
-handlePdf rc ctxWords fp =
-    do cits <- getCitationsFromPdf rc fp
+handlePdf :: Bool -> Cfg -> Int -> Path Abs File -> IO ([ContextedMarker], T.Text)
+handlePdf textMode rc ctxWords fp =
+    do cits <-
+           if textMode
+           then Just <$> getCitationsFromTextFile rc fp
+           else getCitationsFromPdf rc fp
        case cits of
          Nothing ->
              do logError ("Failed to get citations from " <> showText fp)
