@@ -80,7 +80,7 @@ main =
            outwriter _ _ files =
                do let pdfFiles =
                           Seq.fromList $
-                          filter (\f -> fileExtension f == ".pdf") files
+                          filter (\f -> fileExtension f == if c_textMode cfg then ".txt" else ".pdf") files
                   pure pdfFiles
        (out :: Seq.Seq (Path Abs File)) <-
            walkDirAccum descender outwriter inDir
