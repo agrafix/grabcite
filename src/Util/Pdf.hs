@@ -52,7 +52,7 @@ extractTextFromPdf path =
            textOut = dir </> outFile
        ok <-
            runCmd pdfToText
-           [ "-enc", "UTF-8", "-eol", "unix"
+           [ "-enc", "UTF-8", "-eol", "unix", "-raw"
            , toFilePath path, toFilePath textOut
            ]
        isThere <- P.doesFileExist textOut
