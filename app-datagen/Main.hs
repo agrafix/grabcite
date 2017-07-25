@@ -123,8 +123,26 @@ cleanSentence tx =
         lineCount = length tLines
     in if lineCount == 0 || lineCount > 4
        then Nothing
-       else Just (gsub multiSpace (T.singleton ' ') $ T.intercalate " " tLines)
+       else let s = gsub multiSpace (T.singleton ' ') $ T.intercalate " " tLines
+            in if badSentence s then Nothing else (Just s)
     where
+      badSentence t =
+          let wrds = T.words t
+              punct = T.length (T.filter isPunctuation t)
+              num = T.length (T.filter isNumber t)
+              tl = T.length t
+              pnr :: Double
+              pnr =
+                  (fromIntegral punct + fromIntegral num) / fromIntegral tl
+              pwr :: Double
+              pwr = fromIntegral punct / fromIntegral (length wrds)
+          in tl < 10 -- less than 10 letters
+               || length wrds < 3 -- less than 3 words
+               || length (filter goodWord wrds) < 2 -- less than 2 proper words
+               || pnr > 0.3 -- more than 30% numbers / punctuation
+               || pwr > 0.6 -- more than 0.6 punctuation characters per word
+      goodWord w =
+          T.length w >= 2 && T.all isAlpha w
       goodLine x =
           not (T.null x) && not (x =~ sectionTitleLine)
 
