@@ -14,6 +14,7 @@ where
 
 import Util.Regex
 
+import Control.Logger.Simple
 import Control.Monad.RWS.Strict
 import Data.Bifunctor
 import Data.Char
@@ -90,9 +91,28 @@ data ExtractionResult t
 
 extractCitations :: T.Text -> (T.Text -> T.Text) -> ExtractionResult ()
 extractCitations txt preNodeSplit =
-    let markerCands = collectMarkerCands txt
-        withInfo = extractCitInfoLines txt markerCands
-        matchedCands = bestCands withInfo
+    let allMarkerCands = collectMarkerCands txt
+        countMarkerPair hm mc =
+            HM.insertWith (+) (cmc_markerPair mc) 1 hm
+        markerPairCount :: HM.HashMap (Char, Char) Int
+        markerPairCount =
+            foldl' countMarkerPair HM.empty allMarkerCands
+        bestPair =
+            case sortOn (Down . snd) $ HM.toList markerPairCount of
+              (mp, _) : _ -> Just mp
+              _ -> Nothing
+        markerCands =
+            case bestPair of
+              Nothing -> allMarkerCands
+              Just mp -> filter (\m -> cmc_markerPair m == mp) allMarkerCands
+        debugMsg =
+            "Likely citation bounds: " <> showText bestPair <> "\n"
+            <> "Initial marker candidates: " <> showText allMarkerCands <> "\n"
+            <> "With info: " <> showText withInfo
+        withInfo =
+            extractCitInfoLines txt markerCands
+        matchedCands =
+            pureDebug debugMsg $ bestCands withInfo
         rMarkers = relevantMarkers matchedCands markerCands
     in ExtractionResult
        { er_citations = matchedCands
@@ -335,7 +355,9 @@ extractCitInfoLines txtRaw markerCands =
                   else (skippedLines + fromIntegral idx) / allLines
               cicCand =
                   sortOn (Down . cic_score) $ mapMaybe (handleLine mp . second mkPos) (zip rawLines [1..])
-          in listToMaybe cicCand
+          in pureDebug
+               ("Cands for " <> showText mc <> ": " <> showText cicCand) $
+             listToMaybe cicCand
       mkCand line (totalScore, (ref, mc)) =
           CitInfoCand
           { cic_score = totalScore
