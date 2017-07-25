@@ -17,6 +17,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     GrabCite.GetCitations
                      , GrabCite.Dblp
+                     , GrabCite.PaperGrep
                      , GrabCite.Annotate
                      , GrabCite
                      , GrabCite.Stats
@@ -44,7 +45,10 @@ library
                        template-haskell,
                        timespan,
                        directory >= 1.3,
-                       async
+                       async,
+                       superrecord,
+                       vector,
+                       simple-logger
   default-language:    Haskell2010
   ghc-options:         -Wall
 
@@ -62,6 +66,7 @@ executable grabcite-server
                      , lucid
                      , path
                      , unordered-containers
+                     , simple-logger
   default-language:    Haskell2010
 
 executable grabcite-datagen

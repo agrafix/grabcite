@@ -101,8 +101,7 @@ toQueryUrl q =
 
 queryDblp :: Manager -> DblpQuery -> IO (Either String DblpResult)
 queryDblp manager q =
-    do request <-
-           parseRequest (toQueryUrl q)
+    do request <- parseRequest (toQueryUrl q)
        response <- httpLbs request manager
        let rb = responseBody response
        case statusCode (responseStatus response) of

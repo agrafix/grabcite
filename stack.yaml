@@ -3,3 +3,4 @@ packages:
   - '.'
 extra-deps:
   - simple-logger-0.0.3
+  - superrecord-0.3.0.0

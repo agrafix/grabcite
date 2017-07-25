@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 module GrabCite.Annotate
     ( annotateReferences
     , withRefCache, withMemRefCache, RefCache
@@ -7,16 +8,17 @@ where
 
 import GrabCite.Dblp
 import GrabCite.GetCitations
+import GrabCite.PaperGrep
 import Util.Text
 
 import Control.Concurrent.Async
 import Control.Exception
+import Control.Logger.Simple
 import Control.Monad
 import Data.Aeson
 import Data.Bifunctor
 import Data.Char
 import Data.IORef
-import Data.Monoid
 import Data.Time.TimeSpan
 import Network.HTTP.Client
 import Path
@@ -40,7 +42,7 @@ sleeper stopVar s =
           | secs < 0 = pure ()
           | otherwise =
               do stop <- readIORef stopVar
-                 putStrLn ("Go: " ++ show secs)
+                 logInfo ("Go: " <> showText secs)
                  if stop then pure () else (sleepTS (seconds 1) >> go (secs - 1))
 
 withMemRefCache :: (RefCache -> IO a) -> IO a
@@ -64,7 +66,7 @@ withRefCache persistFp action =
                   let tmpFile = toFilePath persistFp ++ ".temp"
                   BSL.writeFile tmpFile (encode val)
                   Dir.renamePath tmpFile (toFilePath persistFp)
-                  putStrLn ("Wrote ref cache to " ++ toFilePath persistFp)
+                  logNote ("Wrote ref cache to " <> showText (toFilePath persistFp))
            start =
                async $
                do let go =
@@ -76,9 +78,9 @@ withRefCache persistFp action =
                   go
            stop x =
                do writeIORef stopVar True
-                  putStrLn "Waiting for ref cache flusher to stop ..."
+                  logNote "Waiting for ref cache flusher to stop ..."
                   () <- wait x
-                  putStrLn "Everything stopped"
+                  logNote "Everything stopped"
        bracket start stop $ \_ -> action (RefCache stateVar)
 
 lookupOrWrite ::
@@ -105,7 +107,16 @@ annotateReferences refCache contentNodes =
         runQuery mgr q =
             lookupOrWrite refCache q $
             do r <- try $ queryDblp mgr (DblpQuery q)
-               pure $ join $ first showEx r
+               let backupQ =
+                       do logInfo "Query to DBLP failed, querying PaperGrep"
+                          r2 <- try $ queryPaperGrep mgr (DblpQuery q)
+                          pure (join $ first showEx r2)
+               case join $ first showEx r of
+                 Right ok@(DblpResult (_ : _)) ->
+                     do logInfo "Query to DBLP was ok"
+                        pure (Right ok)
+                 Right _ -> backupQ
+                 Left _ -> backupQ
 
         showEx :: SomeException -> String
         showEx = show
@@ -123,19 +134,23 @@ annotateReferences refCache contentNodes =
                          q =
                              T.take 40 searchQuery <> T.takeWhile isAlpha leftOver
                      if T.length q < 5
-                        then do putStrLn $
-                                    "Search string to short: " ++ show q
+                        then do logWarn $
+                                    "Search string to short: " <> showText q
                                 pure (CnRef $ r { cr_tag = Nothing })
-                        else do putStrLn ("Will annotate: " ++ show (cr_info r)
-                                          ++ " using: "++ show strWords ++ " ... " ++ show q)
+                        else do logInfo ("Will annotate: " <> showText (cr_info r)
+                                          <> " using: "<> showText strWords
+                                            <> " ... " <> showText q)
                                 res <-
                                     runQuery mgr q
                                 case res of
                                   Left errMsg ->
-                                      do putStrLn errMsg -- poor mans logging
+                                      do logError $ T.pack errMsg
                                          pure (CnRef $ r { cr_tag = Nothing })
                                   Right ok ->
                                       case dr_papers ok of
                                         (paper : _) ->
-                                            pure (CnRef $ r { cr_tag = Just paper })
+                                            do logInfo $
+                                                   "Paper is refed by: "
+                                                   <> showText (db_url paper)
+                                               pure (CnRef $ r { cr_tag = Just paper })
                                         _ -> pure (CnRef $ r { cr_tag = Nothing })
