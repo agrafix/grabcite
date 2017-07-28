@@ -84,7 +84,8 @@ getRefNode cn =
 
 data ExtractionResult t
     = ExtractionResult
-    { er_citations :: ![CitInfoCand]
+    { er_paperId :: !t
+    , er_citations :: ![CitInfoCand]
     , er_markers :: ![CitMarkerCand]
     , er_nodes :: ![ContentNode t]
     } deriving (Show, Eq)
@@ -115,7 +116,8 @@ extractCitations txt preNodeSplit =
             pureDebug debugMsg $ bestCands withInfo
         rMarkers = relevantMarkers matchedCands markerCands
     in ExtractionResult
-       { er_citations = matchedCands
+       { er_paperId = ()
+       , er_citations = matchedCands
        , er_markers = rMarkers
        , er_nodes = toNodes (preNodeSplit $ removeReferencesSection txt) matchedCands rMarkers
        }

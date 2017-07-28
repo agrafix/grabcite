@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 module GrabCite.Annotate
-    ( annotateReferences
+    ( annotateReferences, getPaperId
     , withRefCache, withMemRefCache, RefCache
     )
 where
@@ -108,51 +108,85 @@ lookupOrWrite rc q getVal =
                pure v
         cacheV = unRefCache rc
 
+getPaperId :: RefCache -> [ContentNode t] -> IO (Maybe DblpPaper)
+getPaperId refCache cNodes =
+    newManager defaultManagerSettings >>= \mgr ->
+    case map (isTNode T.strip) $ takeWhile (isTNode $ not . T.null) cNodes of
+      [] -> pure Nothing
+      textChunks ->
+          runLoop (0 :: Int) mgr $
+          concatMap (filter (\t -> T.length t > 2) . map T.strip . T.words) textChunks
+    where
+      runLoop !steps mgr wrds =
+          if length wrds < 5
+          then pure Nothing
+          else do let q = makeSearchQuery $ T.unwords wrds
+                  if T.length q < 5
+                     then pure Nothing
+                     else do res <- runQuery refCache mgr q
+                             case res of
+                               Left errMsg ->
+                                   do logError (T.pack errMsg)
+                                      pure Nothing
+                               Right ok ->
+                                   case dr_papers ok of
+                                     [] ->
+                                         if steps > 5
+                                         then pure Nothing
+                                         else runLoop (steps + 1) mgr (drop 1 wrds)
+                                     (paper : _) -> pure (Just paper)
+      isTNode f x =
+          case x of
+            CnText t -> f t
+            _ -> f ""
+
+makeSearchQuery :: T.Text -> T.Text
+makeSearchQuery txt =
+    let strWords =
+            filter (\t -> T.length t > 2 && T.all isAlpha t) $
+            map T.strip $
+            T.words (textRemovePunc txt)
+        searchQuery = T.unwords strWords
+        leftOver = T.drop 40 searchQuery
+    in T.take 40 searchQuery <> T.takeWhile isAlpha leftOver
+
+runQuery :: RefCache -> Manager -> T.Text -> IO (Either String DblpResult)
+runQuery refCache mgr q =
+    lookupOrWrite refCache q $
+    do r <- try $ queryDblp mgr (DblpQuery q)
+       let backupQ e =
+               do logInfo $
+                      "Query " <> showText q <> " failed to DBLP failed with "
+                      <> e <> ", querying PaperGrep"
+                  r2 <- try $ queryPaperGrep mgr (DblpQuery q)
+                  pure (join $ first showEx r2)
+       case join $ first showEx r of
+         Right ok@(DblpResult (_ : _)) ->
+             do logInfo "Query to DBLP was ok"
+                pure (Right ok)
+         Right _ -> backupQ "empty result set"
+         Left err -> backupQ (showText err)
+    where
+        showEx :: SomeException -> String
+        showEx = show
+
 annotateReferences :: RefCache -> [ContentNode t] -> IO [ContentNode (Maybe DblpPaper)]
 annotateReferences refCache contentNodes =
     do mgr <- newManager defaultManagerSettings
        mapM (annotateNode mgr) contentNodes
     where
-        runQuery mgr q =
-            lookupOrWrite refCache q $
-            do r <- try $ queryDblp mgr (DblpQuery q)
-               let backupQ e =
-                       do logInfo $
-                              "Query " <> showText q <> " failed to DBLP failed with "
-                              <> e <> ", querying PaperGrep"
-                          r2 <- try $ queryPaperGrep mgr (DblpQuery q)
-                          pure (join $ first showEx r2)
-               case join $ first showEx r of
-                 Right ok@(DblpResult (_ : _)) ->
-                     do logInfo "Query to DBLP was ok"
-                        pure (Right ok)
-                 Right _ -> backupQ "empty result set"
-                 Left err -> backupQ (showText err)
-
-        showEx :: SomeException -> String
-        showEx = show
-
         annotateNode mgr cn =
             case cn of
               CnText t -> pure (CnText t)
               CnRef r ->
-                  do let strWords =
-                             filter (\t -> T.length t > 2 && T.all isAlpha t) $
-                             map T.strip $
-                             T.words (textRemovePunc $ cr_info r)
-                         searchQuery = T.unwords strWords
-                         leftOver = T.drop 40 searchQuery
-                         q =
-                             T.take 40 searchQuery <> T.takeWhile isAlpha leftOver
+                  do let q = makeSearchQuery (cr_info r)
                      if T.length q < 5
                         then do logWarn $
                                     "Search string to short: " <> showText q
                                 pure (CnRef $ r { cr_tag = Nothing })
                         else do logInfo ("Will annotate: " <> showText (cr_info r)
-                                          <> " Words: "<> showText strWords
                                             <> " Query: " <> showText q)
-                                res <-
-                                    runQuery mgr q
+                                res <- runQuery refCache mgr q
                                 case res of
                                   Left errMsg ->
                                       do logError $ T.pack errMsg

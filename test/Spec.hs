@@ -22,14 +22,16 @@ import qualified Data.Traversable as T
 
 data PaperInfo
     = PaperInfo
-    { pi_dblpRefs :: ![T.Text]
+    { pi_paperId :: !(Maybe T.Text)
+    , pi_dblpRefs :: ![T.Text]
     } deriving (Show, Eq)
 
 instance FromJSON PaperInfo where
     parseJSON =
         withObject "PaperInfo" $ \o ->
         PaperInfo
-        <$> o .: "dblp-refs"
+        <$> o .:? "my-dblp"
+        <*> o .: "dblp-refs"
 
 testDataDir :: Path Rel Dir
 testDataDir = [reldir|test-data|]
@@ -84,4 +86,7 @@ main =
                          res `shouldNotBe` Nothing
                      it "has the correct dblp references" $
                          S.fromList dblpRefs `shouldBe` S.fromList (pi_dblpRefs info)
+                     it "has correct own dblp" $
+                         join (fmap db_url (join (fmap er_paperId res)))
+                             `shouldBe` pi_paperId info
                      return ()

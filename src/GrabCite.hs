@@ -45,4 +45,5 @@ go :: Cfg -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
 go rc txt =
     do let extracted = extractCitations txt (c_preNodeSplit rc)
        nodes' <- annotateReferences (c_refCache rc) (er_nodes extracted)
-       pure $ extracted { er_nodes = nodes' }
+       paperId <- getPaperId (c_refCache rc) (er_nodes extracted)
+       pure $ extracted { er_nodes = nodes', er_paperId = paperId }
