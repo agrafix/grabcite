@@ -7,6 +7,7 @@ module GrabCite.Dblp
     )
 where
 
+import Control.Applicative
 import Data.Aeson
 import Data.Hashable
 import Data.Monoid
@@ -40,7 +41,9 @@ instance FromJSON DblpPaper where
         withObject "DblpPaper" $ \o ->
         do info <- o .: "info"
            authors <- info .: "authors"
-           authorList <- authors .: "author"
+           authorList <-
+               authors .: "author"
+               <|> ((:[]) <$> authors .: "author")
            title <- info .: "title"
            url <- info .:? "url"
            score <- o .: "@score"

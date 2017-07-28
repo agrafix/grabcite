@@ -83,5 +83,5 @@ main =
                      it "is parsed" $
                          res `shouldNotBe` Nothing
                      it "has the correct dblp references" $
-                         S.fromList (pi_dblpRefs info) `shouldBe` S.fromList dblpRefs
+                         S.fromList dblpRefs `shouldBe` S.fromList (pi_dblpRefs info)
                      return ()

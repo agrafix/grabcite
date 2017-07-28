@@ -353,8 +353,11 @@ extractCitInfoLines txtRaw markerCands =
                   if foundCitSection
                   then 1
                   else (skippedLines + fromIntegral idx) / allLines
+              isGoodLine (ln, _) =
+                  not $ isBadRefLine ln
               cicCand =
-                  sortOn (Down . cic_score) $ mapMaybe (handleLine mp . second mkPos) (zip rawLines [1..])
+                  sortOn (Down . cic_score) $
+                  mapMaybe (handleLine mp . second mkPos) $ filter isGoodLine $ zip rawLines [1..]
           in pureDebug
                ("Cands for " <> showText mc <> ": " <> showText cicCand) $
              listToMaybe cicCand
@@ -394,6 +397,20 @@ extractCitInfoLines txtRaw markerCands =
                   then [ref <> "."]
                   else []
           in (LineCitInfo years names (fullBase : fullMore), ref, mc)
+
+isBadRefLine :: T.Text -> Bool
+isBadRefLine t =
+    let goodWord w =
+            T.length w >= 2 && T.all isAlpha w
+        wrds = T.words t
+        num = T.length (T.filter isNumber t)
+        tl = T.length t
+    in let pnr :: Double
+           pnr = fromIntegral num / fromIntegral tl
+       in tl < 10 -- less than 10 letters
+          || length wrds < 4 -- less than 4 words
+          || length (filter goodWord wrds) < 3 -- less than 3 proper words
+          || pnr > 0.3 -- more than 30% numbers
 
 -- regex taken from parscit
 refSectionIntro :: Regex

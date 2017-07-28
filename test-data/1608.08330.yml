@@ -1,5 +1,4 @@
 dblp-refs:
-  - http://dblp.org/rec/conf/birthday/ButlerHF04
   - http://dblp.org/rec/conf/cc/NgY16
   - http://dblp.org/rec/conf/ecoop/WilliamsTE05
   - http://dblp.org/rec/conf/lata/SulzmannT16
@@ -7,3 +6,9 @@ dblp-refs:
   - http://dblp.org/rec/conf/padl/ChristakisS11
   - http://dblp.org/rec/conf/spin/MartelG00
   - http://dblp.org/rec/conf/tapsoft/NielsonN95
+  - http://dblp.org/rec/books/daglib/0019517
+  - http://dblp.org/rec/books/daglib/0098267
+  - http://dblp.org/rec/conf/concur/Kobayashi06
+  - http://dblp.org/rec/conf/pepm/Colby95
+  - http://dblp.org/rec/journals/jacm/Brzozowski64
+  - http://dblp.org/rec/journals/toplas/Huang90
