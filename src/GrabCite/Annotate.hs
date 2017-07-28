@@ -91,12 +91,21 @@ lookupOrWrite ::
 lookupOrWrite rc q getVal =
     do val <- readIORef cacheV
        case HM.lookup q val of
-         Just x -> pure x
+         Just x ->
+             case x of
+               Left _ ->
+                   do logInfo "Cache value was in error state, try to fill it now."
+                      go
+               Right _ ->
+                   do logInfo ("Reading result from cache for " <> showText q)
+                      pure x
          Nothing ->
-             do v <- getVal
-                atomicModifyIORef' cacheV (\x -> (HM.insert q v x, ()))
-                pure v
+             go
     where
+        go =
+            do v <- getVal
+               atomicModifyIORef' cacheV (\x -> (HM.insert q v x, ()))
+               pure v
         cacheV = unRefCache rc
 
 annotateReferences :: RefCache -> [ContentNode t] -> IO [ContentNode (Maybe DblpPaper)]
@@ -107,16 +116,18 @@ annotateReferences refCache contentNodes =
         runQuery mgr q =
             lookupOrWrite refCache q $
             do r <- try $ queryDblp mgr (DblpQuery q)
-               let backupQ =
-                       do logInfo "Query to DBLP failed, querying PaperGrep"
+               let backupQ e =
+                       do logInfo $
+                              "Query " <> showText q <> " failed to DBLP failed with "
+                              <> e <> ", querying PaperGrep"
                           r2 <- try $ queryPaperGrep mgr (DblpQuery q)
                           pure (join $ first showEx r2)
                case join $ first showEx r of
                  Right ok@(DblpResult (_ : _)) ->
                      do logInfo "Query to DBLP was ok"
                         pure (Right ok)
-                 Right _ -> backupQ
-                 Left _ -> backupQ
+                 Right _ -> backupQ "empty result set"
+                 Left err -> backupQ (showText err)
 
         showEx :: SomeException -> String
         showEx = show
@@ -138,8 +149,8 @@ annotateReferences refCache contentNodes =
                                     "Search string to short: " <> showText q
                                 pure (CnRef $ r { cr_tag = Nothing })
                         else do logInfo ("Will annotate: " <> showText (cr_info r)
-                                          <> " using: "<> showText strWords
-                                            <> " ... " <> showText q)
+                                          <> " Words: "<> showText strWords
+                                            <> " Query: " <> showText q)
                                 res <-
                                     runQuery mgr q
                                 case res of
@@ -153,4 +164,7 @@ annotateReferences refCache contentNodes =
                                                    "Paper is refed by: "
                                                    <> showText (db_url paper)
                                                pure (CnRef $ r { cr_tag = Just paper })
-                                        _ -> pure (CnRef $ r { cr_tag = Nothing })
+                                        _ ->
+                                            do logWarn $
+                                                   "No search results for " <> showText q
+                                               pure (CnRef $ r { cr_tag = Nothing })
