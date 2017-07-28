@@ -13,6 +13,7 @@ module Main where
 import GrabCite
 import GrabCite.Annotate
 import GrabCite.Context
+import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.GlobalId
 import Util.Regex
@@ -185,13 +186,19 @@ workLoop textMode ctxWrite ctxWords jobs outDir st todoQueue rc =
                 Left (ex :: SomeException) ->
                     do logError ("Failed to work on " <> showText f <> ": " <> showText ex)
                        pure Nothing
-                Right (ok, full) ->
+                Right (paperId, ok, full) ->
                     do fbase <-
                            parseRelFile $ FP.dropExtension $ toFilePath $ filename f
                        fullWriter <-
                            async $
                            do let fullFile = toFilePath (outDir </> fbase) <> ".txt"
                               T.writeFile fullFile full
+                              case paperId of
+                                Nothing -> logInfo "No paper info"
+                                Just pp ->
+                                    do let metaFile = toFilePath (outDir </> fbase) <> ".meta"
+                                       logInfo ("Wrote meta file to " <> showText metaFile)
+                                       BSL.writeFile metaFile (encode pp)
                               logInfo ("Wrote full text to " <> showText fullFile)
                        when ctxWrite $
                            forConcurrently_ (zip ok [1..]) $ \(mc, idx :: Int) ->
@@ -239,7 +246,7 @@ updateState st (f, cxm) =
                }
     in foldl' updateCxm baseSt cxm
 
-handlePdf :: Bool -> Cfg -> Int -> Path Abs File -> IO ([ContextedMarker], T.Text)
+handlePdf :: Bool -> Cfg -> Int -> Path Abs File -> IO (Maybe DblpPaper, [ContextedMarker], T.Text)
 handlePdf textMode rc ctxWords fp =
     do cits <-
            if textMode
@@ -248,11 +255,12 @@ handlePdf textMode rc ctxWords fp =
        case cits of
          Nothing ->
              do logError ("Failed to get citations from " <> showText fp)
-                pure ([], "")
+                pure (Nothing, [], "")
          Just er ->
-             let nodes = fmap globalCitId $ er_nodes er
+             let nodes = globalCitId <$> er_nodes er
              in pure
-                  ( getContextedMarkers ctxWords nodes
+                  ( er_paperId er
+                  , getContextedMarkers ctxWords nodes
                   , sentenceSplitter $ mkTextBody nodes
                   )
 
