@@ -21,7 +21,7 @@ jobs:
             - ~/grabcite/.stack-work
       - run:
           name: install pdftotext
-          command: 'apt-get install poppler-utils'
+          command: 'apt-get install update && apt-get install -y poppler-utils'
       - run:
           name: stack build
           command: 'stack build --fast --pedantic'
