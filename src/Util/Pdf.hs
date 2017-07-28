@@ -7,6 +7,8 @@ module Util.Pdf
     )
 where
 
+import Util.Text
+
 import Path
 import System.Exit
 import System.IO
@@ -57,7 +59,7 @@ extractTextFromPdf path =
            ]
        isThere <- P.doesFileExist textOut
        if ok && isThere
-           then Just <$> T.readFile (toFilePath textOut)
+           then Just . textRemoveLig <$> T.readFile (toFilePath textOut)
            else return Nothing
 
 runCmd :: Path r File -> [String] -> IO Bool

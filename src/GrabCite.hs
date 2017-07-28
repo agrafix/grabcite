@@ -9,6 +9,7 @@ import GrabCite.Annotate
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import Util.Pdf
+import Util.Text
 
 import Path
 import qualified Data.ByteString as BS
@@ -25,7 +26,7 @@ data Cfg
 getCitationsFromTextFile :: Cfg -> Path t File -> IO (ExtractionResult (Maybe DblpPaper))
 getCitationsFromTextFile rc fp =
     do r <- T.readFile (toFilePath fp)
-       go rc r
+       go rc (textRemoveLig r)
 
 getCitationsFromPdf :: Cfg -> Path t File -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
 getCitationsFromPdf rc fp =
@@ -39,7 +40,7 @@ getCitationsFromPdfBs rc bs =
        T.mapM (go rc) r
 
 getCitationsFromPlainText :: Cfg -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
-getCitationsFromPlainText = go
+getCitationsFromPlainText c = go c . textRemoveLig
 
 go :: Cfg -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
 go rc txt =
