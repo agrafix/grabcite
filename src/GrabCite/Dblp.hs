@@ -74,7 +74,8 @@ instance FromJSON DblpResult where
         withObject "DblpResult" $ \o ->
         do r <- o .: "result"
            hits <- r .: "hits"
-           hitList <- hits .: "hit"
+           hitList <-
+               hits .:? "hit" .!= []
            pure (DblpResult hitList)
 
 instance ToJSON DblpResult where
