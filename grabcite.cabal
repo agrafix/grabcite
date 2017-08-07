@@ -23,6 +23,7 @@ library
                      , GrabCite.Stats
                      , GrabCite.Context
                      , GrabCite.GlobalId
+                     , GrabCite.IceCite.Tsv
                      , Util.Regex
   other-modules:       Util.Pdf
                      , Util.Text
@@ -30,6 +31,7 @@ library
                        bytestring >= 0.10,
                        process >= 1.4,
                        text,
+                       bifunctors,
                        path,
                        path-io,
                        unordered-containers,
@@ -48,7 +50,8 @@ library
                        async,
                        superrecord,
                        vector,
-                       simple-logger
+                       simple-logger,
+                       cassava
   default-language:    Haskell2010
   ghc-options:         -Wall
 

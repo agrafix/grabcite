@@ -1,0 +1,89 @@
+feature	text	page	minX	minY	maxX	maxY	mostCommonFont	mostCommonFontsize	mostCommonColor	startFont	startFontsize	startColor	endFont	endFontsize	endColor	role
+paragraph	The Utility of Adaptation vs. Signaling Action Tendencies in the Competition for Resources	1	60.5557	656.97375	550.86224	685.0324	font-235	14.3	color-0	font-235	14.3471	color-0	font-235	14.3471	color-0	header-other
+paragraph	Matthias Scheutz Department of Computer Science and Engineering University of Notre Dame, Notre Dame, IN 46556 mscheutz@nd.edu	1	184.98923	577.29834	426.73557	627.47565	font-237	12.0	color-0	font-237	11.9558	color-0	font-237	11.9558	color-0	header-other
+paragraph	Abstract	1	154.3967	539.2442	198.83643	547.6611	font-290	12.0	color-0	font-290	11.9558	color-0	font-290	11.9558	color-0	abstract-heading
+paragraph	We explore strategies to resolve conflicts in multiagent environments that arise when agents compete for resources they need for survival and procreation. As expected, social strategies are better than asocial strategies and adaptive strategies are better than non-adaptive ones.	1	58.503952	465.9666	294.72354	522.6443	font-238	10.0	color-0	font-238	9.9632	color-0	font-238	9.9632	color-0	abstract
+paragraph	1. Introduction	1	58.5031	424.1364	140.63943	432.56525	font-290	12.0	color-0	font-290	11.9558	color-0	font-290	11.9558	color-0	title
+paragraph	Conflicts arise when two or more agents require a non-sharable resource at the same time. We explore different strategies to resolve conflicts game-theoretically [3, 2] and investigate the relationship between conflict games and larger games of survival in which they are embedded.	1	58.502853	352.0351	294.56998	408.84128	font-291	10.0	color-0	font-291	9.9632	color-0	font-291	9.9632	color-0	body-text
+paragraph	2. The Conflict Game	1	58.5021	327.86072	172.69435	336.34933	font-290	12.0	color-0	font-290	11.9558	color-0	font-290	11.9558	color-0	section-heading
+paragraph	The survival game can be viewed as a tournament [1] consisting of lots of individual conflict games, where agents can perform two actions: they can “continue” the conflict game or they can “quit” the game . Each action has a cost associated with it, which the agents have to pay from their current budget (agents are permanently removed from the tournament if they cannot pay). The resource has a benefit associated with it, which only the winner of the competition gets. The losers might be able to get other resources with a certain probability (“the benefit of leaving”). Agents whose budget exceeds a certain amount CD will produce an exact copy of themselves, which will be added to the tournament. A strategy for the conflict game can be defined in terms of the probability PA that an agent A will continue a game.  The utility function US(n) for the expected outcome for player S in a two-player game (with	1	58.498947	124.31237	294.6968	312.62537	font-291	10.0	color-0	font-291	9.9632	color-0	font-291	9.9632	color-0	body-text
+paragraph	1 We will use CP to denote the cost for playing the game, CL to denote the cost for quitting, BP to denote the benefit of winning, and BL to denote the benefit of losing. Typically, BP + CP > BL + CL.	1	58.50009	82.78152	294.7415	108.05803	font-293	8.0	color-0	font-293	7.9701223	color-0	font-293	7.9701223	color-0	unknown
+paragraph	Permission to make digital or hard copies of all or part of  	1	18.404688	72.02874	158.80283	75.97003	font-294	6.0	color-0	font-294	5.9989204	color-0	font-294	5.9989204	color-0	unknown
+paragraph	this work for personal or classroom use is granted without fee  	1	18.404684	65.12998	169.61713	69.07127	font-294	6.0	color-0	font-294	5.9989204	color-0	font-294	5.9989204	color-0	unknown
+paragraph	provided that copies are not made or distributed for profit or  	1	18.404684	58.23122	165.99104	62.172512	font-294	6.0	color-0	font-294	5.9989204	color-0	font-294	5.9989204	color-0	unknown
+paragraph	commercial advantage and that copies bear this notice and the  	1	18.404684	51.33246	170.19165	55.27375	font-294	6.0	color-0	font-294	5.9989204	color-0	font-294	5.9989204	color-0	unknown
+paragraph	full citation on the first page. To copy otherwise, to republish,  	1	18.404684	44.4337	170.2124	48.374992	font-294	6.0	color-0	font-294	5.9989204	color-0	font-294	5.9989204	color-0	unknown
+paragraph	to post on servers or to redistribute to lists, requires prior  	1	18.404684	37.53494	157.80983	41.47623	font-294	6.0	color-0	font-294	5.9989204	color-0	font-294	5.9989204	color-0	unknown
+paragraph	specific permission and/or a fee.  	1	18.404684	30.63618	99.132744	34.577473	font-294	6.0	color-0	font-294	5.9989204	color-0	font-294	5.9989204	color-0	formula
+paragraph	           AAMAS'04, July 19-23, 2004, New York, New York, USA.  	1	18.404684	23.737423	182.97437	27.678715	font-294	6.0	color-0	font-294	5.9989204	color-0	font-294	5.9989204	color-0	formula
+paragraph	           Copyright 2004 ACM 1-58113-864-4/04/0007...$5.00 	1	18.404684	16.838665	166.23007	20.779957	font-294	6.0	color-0	font-294	5.9989204	color-0	font-294	5.9989204	color-0	page-footer
+paragraph	players S and O) after n rounds is given by: US(n) = PS · PO · (CP + US(n + 1)) + PS · (1 − PO) · (BP + CP)+ (1 −PS)· PO ·(BL +CL)+ (1 −PS)· (1 −PO)· (BL +CL). It is strictly decreasing, as for every round the game is continued the cost CP has to be paid, and has two maxima at PS = 0, PO = 1 and PO = 0, PS = 1. Consequently, it is clear that long games only incur costs and that the best game is a one-round game.	1	317.2479	453.51596	553.4911	546.85126	font-291	10.0	color-0	font-21	9.962603	color-0	font-291	9.962603	color-0	body-text
+paragraph	One way to shorten games is for an agent to lower its probability of continuing if the other agent’s probability is higher than its own, and otherwise increase it, call it the Social Rule: S increases its probability PS to continue the game by a factor of 1−PSPS · (PS − PO) if PS > PO and decreases it by a factor of PSPO · (PP − PS) if PS < PO, otherwise it remains the same. The repeated application of the social rule in the limit leads to the Rational Rule, which ensures one-round games: S plays 0 if PS <= PO and 1 otherwise. It is based on the assumption that contestants do not know the actual value of BP, BL, CP, and CL, hence cannot compute whether (1 − PO) · BP + CP > BL + CL (otherwise they could play pure strategies). Note that this strategy, however, is not fair in that repeated encounters between the same two individuals will lead to the same outcome, i.e., the same individual will win over and over again. In a group that means that the agent A with highest PA will have n·((1−p)·BP +CP) payoff after n encounters and the bottom one PA will have n · (BL + CL). A fair way to distribute resources given that the utility function has a maximum for both PS = 1, PO = 0 and PS = 0, PO = 1, is to alternate between getting BP + CP and BL + CL, which allows each player to get the average payoff (BP + CP + BL + CL)/2 every turn. We will call this the Turn-Taking Rule (for a details, see [4]).	1	315.7478	140.15741	553.42944	450.44147	font-291	10.0	color-0	font-238	9.961407	color-0	font-291	9.961407	color-0	body-text
+paragraph	3. Experiments and Results	1	317.2106	112.94223	461.91556	123.6527	font-290	12.0	color-0	font-290	11.953649	color-0	font-290	11.953649	color-0	section-heading
+paragraph	We conducted extensive simulation studies in an artificial life simulation environment called SWAGES, which	1	317.21146	79.58511	553.2381	99.74402	font-291	10.0	color-0	font-291	1.0	color-0	font-291	9.961407	color-0	body-text
+paragraph	90 Performance of Social Agents	2	71.98143	695.9625	221.82352	706.55414	font-222	4.8	color-0	font-222	4.8467927	color-0	font-222	4.844178	color-0	unknown
+paragraph	90 Performance of Rational Agents	2	322.66605	694.8363	474.41586	705.3671	font-222	4.8	color-0	font-222	4.838949	color-0	font-222	4.836338	color-0	unknown
+paragraph	80 80	2	71.98575	681.46313	328.06665	685.3547	font-222	4.8	color-0	font-222	4.847083	color-0	font-222	4.8392396	color-0	formula
+paragraph	70 70	2	71.99006	666.96204	328.08633	672.3285	font-222	4.8	color-0	font-222	4.8473735	color-0	font-222	4.83953	color-0	formula
+paragraph	654321000000 6054321000000	2	71.99438	577.5612	328.22388	659.30176	font-222	4.8	color-0	font-222	4.847664	color-0	font-222	4.8415637	color-0	formula
+paragraph	0 alive alive alive alive	2	74.71664	560.11725	194.82265	568.9528	font-222	4.8	color-0	font-222	4.849409	color-0	font-222	4.8456306	color-0	unknown
+paragraph	alive alive alive -10	2	217.07097	560.01654	328.24356	568.06647	font-222	4.8	color-0	font-222	4.84534	color-0	font-222	4.841854	color-0	unknown
+paragraph	alive alive alive alive alive alive alive	2	338.8136	559.1102	541.7001	562.95013	font-222	4.8	color-0	font-222	4.8386593	color-0	font-222	4.8369184	color-0	unknown
+paragraph	ASsTooimcciiaiadll AsociaAlgAgRdraeatspiostniivvaeel	2	105.7172	537.0442	200.47476	551.54047	font-222	4.8	color-0	font-222	4.8435974	color-0	font-222	4.843016	color-0	formula
+paragraph	90 Performance of Social Adaptive Agents	2	71.75298	518.7973	231.18468	529.4496	font-222	4.8	color-0	font-222	4.8314104	color-0	font-222	4.8288026	color-0	unknown
+paragraph	RaStioocniaall AAddaappttiivvee RatioTinmiald Asocial	2	241.6138	537.21454	371.8125	551.341	font-222	4.8	color-0	font-222	4.8421445	color-0	font-222	4.836338	color-0	formula
+paragraph	100	2	321.8347	517.9269	329.87997	521.4576	font-222	4.8	color-0	font-222	4.8233047	color-0	font-222	4.8233047	color-0	formula
+paragraph	AsociaAlgAgdreSaspostciivviaeel RaStioocniaall AAddaappttiivvee	2	414.9771	536.17505	529.7018	550.5477	font-222	4.8	color-0	font-222	4.834888	color-0	font-222	4.834598	color-0	formula
+paragraph	Performance of Rational Adaptive Agents	2	395.9556	523.9385	484.37692	528.5181	font-222	4.8	color-0	font-222	4.820703	color-0	font-222	4.820703	color-0	unknown
+paragraph	87650000 9087650000	2	71.757286	458.87573	329.9795	509.63626	font-222	4.8	color-0	font-222	4.8317	color-0	font-222	4.8247504	color-0	formula
+paragraph	40 40	2	71.774506	446.46	329.99927	450.57895	font-222	4.8	color-0	font-222	4.832859	color-0	font-222	4.8250394	color-0	formula
+paragraph	321000 3021000	2	71.7788	399.78806	330.07822	438.78403	font-222	4.8	color-0	font-222	4.8331485	color-0	font-222	4.826197	color-0	formula
+paragraph	0 alive alive alive alive	2	74.4795	383.42514	194.20432	392.09625	font-222	4.8	color-0	font-222	4.834018	color-0	font-222	4.830251	color-0	unknown
+paragraph	alive alive alive -10	2	216.382	383.3561	330.09802	391.48535	font-222	4.8	color-0	font-222	4.8299613	color-0	font-222	4.8264866	color-0	unknown
+paragraph	alive alive alive alive alive alive alive	2	340.47415	382.71307	540.0871	386.47766	font-222	4.8	color-0	font-222	4.8230157	color-0	font-222	4.821281	color-0	unknown
+paragraph	Social AAdasTpoimtciviaidel AggRraeStsiooscniviaaell	2	87.677086	361.4715	199.83818	374.92792	font-222	4.8	color-0	font-222	4.8288026	color-0	font-222	4.827934	color-0	formula
+paragraph	AsocialRational AdaptiAdaptivvee Rational AAdasTpoimtciviaidel AggRraeStsiooscniviaaell ASsoocciiaall AAddaappttiivvee	2	240.84694	360.86517	527.989	374.73398	font-222	4.8	color-0	font-222	4.826776	color-0	font-222	4.818969	color-0	formula
+paragraph	Figure 1. The average number of survivors in experiments with social and adaptive agents.	2	90.96253	331.8959	516.69135	341.27014	font-218	9.9	color-0	font-218	9.898878	color-0	font-218	9.898878	color-0	figure-caption
+paragraph	is under development in our lab. Specifically, we defined 8 basic agent types: asocial agents consist of three non-adaptive agents called timid (playing “always quit”), Aggressive (playing “always continue”), and (prototypically) Asocial (playing a mixed strategy), as well as Adaptive asocial (playing a mixed strategy with the turn-taking rule. Social agents are either adaptive or non-adaptive (prototypically) Social (playing the social rule) or Rational (playing the rational rule).	2	57.61959	207.98843	292.61978	311.5275	font-291	9.9	color-0	font-238	9.898284	color-0	font-291	9.898284	color-0	body-text
+paragraph	Agents play the survival game in a continuous two-dimensional plane, where agents and resources are randomly distributed within an 1800 by 1800 square area. At every cycle a new resources appears at a random location within this area and remains in its location until emptied by an agent (agents can empty resources and add their value to their budget by moving over them; empty resources will be removed). Agents can move in any direction based on their perception of items using a fixed policy [4]. In all experiments, 40 simulations were run, each with 50 randomly Permission to make digital or hard copies of all or part of  	2	18.288063	71.57231	292.6485	194.13777	font-291	9.9	color-0	font-294	5.960907	color-0	font-291	9.898284	color-0	body-text
+paragraph	this work for personal or classroom use is granted without fee  	2	18.28806	64.71727	168.54231	68.63358	font-294	6.0	color-0	font-294	5.960907	color-0	font-294	5.960907	color-0	unknown
+paragraph	provided that copies are not made or distributed for profit or  	2	18.28806	57.862225	164.93921	61.77854	font-294	6.0	color-0	font-294	5.960907	color-0	font-294	5.960907	color-0	unknown
+paragraph	commercial advantage and that copies bear this notice and the  	2	18.28806	51.00718	169.11319	54.923496	font-294	6.0	color-0	font-294	5.960907	color-0	font-294	5.960907	color-0	unknown
+paragraph	full citation on the first page. To copy otherwise, to republish,  	2	18.28806	44.152138	169.13382	48.068455	font-294	6.0	color-0	font-294	5.960907	color-0	font-294	5.960907	color-0	unknown
+paragraph	to post on servers or to redistribute to lists, requires prior  	2	18.28806	37.297092	156.80983	41.21341	font-294	6.0	color-0	font-294	5.960907	color-0	font-294	5.960907	color-0	unknown
+paragraph	specific permission and/or a fee.  	2	18.28806	30.442049	98.50457	34.358364	font-294	6.0	color-0	font-294	5.960907	color-0	font-294	5.960907	color-0	formula
+paragraph	           AAMAS'04, July 19-23, 2004, New York, New York, USA.  	2	18.28806	23.587006	181.81491	27.503323	font-294	6.0	color-0	font-294	5.960907	color-0	font-294	5.960907	color-0	formula
+paragraph	           Copyright 2004 ACM 1-58113-864-4/04/0007...$5.00 	2	18.28806	16.731964	165.17673	20.648281	font-294	6.0	color-0	font-294	5.960907	color-0	font-294	5.960907	color-0	page-footer
+paragraph	placed initial agents (25 each of two different kinds) and 50 randomly distributed initial resources for 10000 cycles. The results (average number of survivors across all 40 runs with 95% confidence interval) shown in Fig. 1 demonstrate that adaptive social agents outperform all other kinds.	2	315.2027	255.08943	549.7031	311.57498	font-291	9.9	color-0	font-291	9.898284	color-0	font-291	9.898284	color-0	body-text
+paragraph	References	2	315.20062	230.98198	370.36047	239.3559	font-290	11.9	color-0	font-290	11.877902	color-0	font-290	11.877902	color-0	reference-heading
+paragraph	[1] R. Axelrod and W. D. Hamilton. The evolution of cooperation.	2	315.20053	208.07637	549.6434	216.094	font-295	8.9	color-0	font-295	8.908476	color-0	font-295	8.908476	color-0	reference
+paragraph	Science, 211:1390–1396, 1981.	2	330.53558	197.87082	461.696	205.2203	font-295	8.9	color-0	font-295	8.908476	color-0	font-295	8.908476	color-0	reference
+paragraph	[2] M. Enquist and O. Leimar. Evolution of fighting behavior:	2	315.20053	185.30096	549.66473	193.3275	font-295	8.9	color-0	font-295	8.908476	color-0	font-295	8.908476	color-0	reference
+paragraph	decision rules and assessment of relative strength. Journal of Theoretical Biology, (102):387–410, 1983.	2	330.53558	163.63376	550.9616	182.4449	font-295	8.9	color-0	font-295	8.908476	color-0	font-296	8.908476	color-0	reference
+paragraph	[3] J. Maynard Smith. The theory of games and the evolution of	2	315.20142	151.65186	550.1049	159.67839	font-295	8.9	color-0	font-295	8.908476	color-0	font-295	8.908476	color-0	reference
+paragraph	animal conflicts. Journal of Theoretical Biology, pages 209–221, 1974.	2	330.53647	130.55481	549.65826	148.78688	font-295	8.9	color-0	font-295	8.908476	color-0	font-295	8.908476	color-0	reference
+paragraph	[4] M. Scheutz and P. Schermerhorn. The more radical, the better:	2	315.20145	118.546165	549.65875	126.02038	font-295	8.9	color-0	font-295	8.908476	color-0	font-295	8.908476	color-0	reference
+paragraph	Investigating the utility of aggression in the competition among different agent kinds. In SAB 2004, page forthcoming. MIT Press, 2004.	2	330.5365	85.32825	549.68085	115.128876	font-295	8.9	color-0	font-295	8.908476	color-0	font-295	8.908476	color-0	reference
+font	font-21	cmmi10	0	1	0
+font	font-218	helvetica-bold	1	0	0
+font	font-222	helvetica	0	0	0
+font	font-23	cmmi5	0	1	0
+font	font-235	times-bold	1	0	0
+font	font-237	times-roman	0	0	0
+font	font-238	times-italic	0	1	0
+font	font-24	cmmi6	0	1	0
+font	font-25	cmmi7	0	1	0
+font	font-26	cmmi8	0	1	0
+font	font-290	times~f	1	0	0
+font	font-291	timesroman~15	0	0	0
+font	font-292	timesroman~1e	0	0	0
+font	font-293	timesroman~24	0	0	0
+font	font-294	timesnewroman	0	0	0
+font	font-295	timesroman~47	0	0	0
+font	font-296	times~4a	0	1	0
+font	font-31	cmr10	0	0	0
+font	font-36	cmr7	0	0	0
+font	font-37	cmr8	0	0	0
+font	font-58	cmsy10	0	1	0
+font	font-61	cmsy7	0	1	0
+color	color-0	0.0	0.0	0.0

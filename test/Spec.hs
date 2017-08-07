@@ -6,9 +6,11 @@ import GrabCite
 import GrabCite.Annotate
 import GrabCite.Dblp
 import GrabCite.GetCitations
+import GrabCite.IceCite.Tsv
 
 import Control.Monad
 import Data.Aeson
+import Data.Either
 import Data.List
 import Data.Maybe
 import Data.Monoid
@@ -35,6 +37,18 @@ instance FromJSON PaperInfo where
 
 testDataDir :: Path Rel Dir
 testDataDir = [reldir|test-data|]
+
+testTsvDir :: Path Rel Dir
+testTsvDir = [reldir|test-tsv|]
+
+computeTsvFiles :: IO (Seq.Seq (Path Abs File))
+computeTsvFiles =
+    walkDirAccum (Just $ \_ _ _ -> pure $ WalkExclude []) ow testTsvDir
+    where
+      ow _ _ files =
+          do let tsvFiles =
+                     filter (\f -> fileExtension f == ".tsv") files
+             pure $ Seq.fromList tsvFiles
 
 computeTestCases :: IO (Seq.Seq (Path Abs File, Path Abs File))
 computeTestCases =
@@ -66,8 +80,16 @@ main =
     withMemRefCache $ \rc ->
     hspec $
     do testCases <- runIO computeTestCases
+       tsvFiles <- runIO computeTsvFiles
+
+       describe "ice cite tsv parser" $
+           forM_ tsvFiles $ \tsvFile ->
+           it ("should parse " <> toFilePath tsvFile) $
+           do res <- parseTsvFile (toFilePath tsvFile)
+              shouldSatisfy res isRight
+
        let cfg = Cfg { c_refCache = rc, c_preNodeSplit = id }
-       forM_ testCases $ \(pdfFile, ymlFile) ->
+       describe "citation extractor" $ forM_ testCases $ \(pdfFile, ymlFile) ->
            do describe ("testcase " <> toFilePath (filename pdfFile)) $
                   do res <- runIO (getCitationsFromPdf cfg pdfFile)
                      info <-
