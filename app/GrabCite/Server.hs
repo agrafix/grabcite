@@ -28,7 +28,7 @@ type Action = SpockAction () MySession MyAppState
 runServer :: Int -> IO ()
 runServer port =
     withMemRefCache $ \rc ->
-    do spockCfg <- defaultSpockCfg EmptySession PCNoDatabase (Cfg rc id)
+    do spockCfg <- defaultSpockCfg EmptySession PCNoDatabase (Cfg rc)
        runSpock port (spock spockCfg app)
 
 app :: App

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module GrabCite.IceCite.Types
-    ( FontWithAttribs(..), IceFeature(..)
+    ( FontWithAttribs(..)
     , IceRole(..)
     , IceDocument(..), IcePage(..), IceParagraph(..)
     , parseIceDocument
@@ -8,7 +8,6 @@ module GrabCite.IceCite.Types
 where
 
 import Data.Aeson
-import Data.Monoid
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text as T
@@ -78,21 +77,6 @@ data FontWithAttribs
     , fwa_color :: !T.Text
     } deriving (Show, Eq)
 
-data IceFeature
-    = IfParagraph
-    | IfFont
-    | IfColor
-    deriving (Show, Eq)
-
-instance FromJSON IceFeature where
-    parseJSON =
-        withText "feature" $ \s ->
-        case s of
-          "paragraph" -> pure IfParagraph
-          "font" -> pure IfFont
-          "color" -> pure IfColor
-          _ -> fail ("Bad feature: " <> show s)
-
 data IceRole
     = IrReference
     | IrBodyText
@@ -110,6 +94,7 @@ data IceRole
     | IrReferenceHeading
     | IrItemizeItem
     | IrUnknown
+    | IrOther !T.Text
     deriving (Show, Eq)
 
 instance FromJSON IceRole where
@@ -132,4 +117,4 @@ instance FromJSON IceRole where
           "table-caption" -> pure IrTableCaption
           "itemize-item" -> pure IrItemizeItem
           "unknown" -> pure IrUnknown
-          _ -> fail ("Bad role: " <> show s)
+          _ -> pure (IrOther s)

@@ -1,7 +1,7 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE DeriveFunctor #-}
 module GrabCite.GetCitations
     ( extractCitations
@@ -12,7 +12,7 @@ module GrabCite.GetCitations
     )
 where
 
-import Util.Regex
+import GrabCite.Pipeline
 
 import Control.Logger.Simple
 import Control.Monad.RWS.Strict
@@ -21,7 +21,6 @@ import Data.Char
 import Data.List
 import Data.Maybe
 import Data.Ord
-import Text.Regex.PCRE.Heavy
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
@@ -90,9 +89,14 @@ data ExtractionResult t
     , er_nodes :: ![ContentNode t]
     } deriving (Show, Eq)
 
-extractCitations :: T.Text -> (T.Text -> T.Text) -> ExtractionResult ()
-extractCitations txt preNodeSplit =
-    let allMarkerCands = collectMarkerCands txt
+extractCitations :: Input -> ExtractionResult ()
+extractCitations input =
+    let textCorpus =
+            case input of
+              InStructured si -> si_textCorpus si
+              InRawText rt -> rt_textCorpus rt
+        allMarkerCands =
+            collectMarkerCands textCorpus
         countMarkerPair hm mc =
             HM.insertWith (+) (cmc_markerPair mc) 1 hm
         markerPairCount :: HM.HashMap (Char, Char) Int
@@ -111,7 +115,7 @@ extractCitations txt preNodeSplit =
             <> "Initial marker candidates: " <> showText allMarkerCands <> "\n"
             <> "With info: " <> showText withInfo
         withInfo =
-            extractCitInfoLines txt markerCands
+            extractCitInfoLines input markerCands
         matchedCands =
             pureDebug debugMsg $ bestCands withInfo
         rMarkers = relevantMarkers matchedCands markerCands
@@ -119,18 +123,8 @@ extractCitations txt preNodeSplit =
        { er_paperId = ()
        , er_citations = matchedCands
        , er_markers = rMarkers
-       , er_nodes = toNodes (preNodeSplit $ removeReferencesSection txt) matchedCands rMarkers
+       , er_nodes = toNodes textCorpus matchedCands rMarkers
        }
-
-removeReferencesSection :: T.Text -> T.Text
-removeReferencesSection txtRaw =
-    let isRefIntroLine :: T.Text -> Bool
-        isRefIntroLine ln
-            | not (T.null ln) = ln =~ refSectionIntro
-            | otherwise = False
-        refSectionLines =
-            takeWhile (not . isRefIntroLine . T.strip) $ T.lines txtRaw
-    in T.unlines refSectionLines
 
 relevantMarkers :: [CitInfoCand] -> [CitMarkerCand] -> [CitMarkerCand]
 relevantMarkers cics =
@@ -327,34 +321,39 @@ bestCands =
       grouper hm el =
           HM.insertWith (++) (cic_ref el) [el] hm
 
-extractCitInfoLines :: T.Text -> [CitMarkerCand] -> [CitInfoCand]
-extractCitInfoLines txtRaw markerCands =
+extractCitInfoLines :: Input -> [CitMarkerCand] -> [CitInfoCand]
+extractCitInfoLines input markerCands =
     catMaybes $
     flip concatMap markerCands $ \mc -> flip map (cmc_references mc) $ \ref ->
     runMarkerCand mc ref
     where
-      isRefIntroLine :: T.Text -> Bool
-      isRefIntroLine ln =
-          ln =~ refSectionIntro
-      refSectionLines =
-          dropWhile (not . isRefIntroLine) $ filter (not . T.null) $
-          map T.strip $ T.lines txtRaw
-      allLines = fromIntegral $ length (map T.strip $ T.lines txtRaw) + 1
       runMarkerCand mc ref =
           let mp = mkMarkerCandMap mc ref
               (_, ubound) = cmc_range mc
-              foundCitSection =
-                  not $ null refSectionLines
-              rawLines =
-                  if foundCitSection
-                  then refSectionLines
-                  else filter (not . T.null) $ map T.strip $ T.lines (T.drop ubound txtRaw)
-              skippedLines = allLines - fromIntegral (length rawLines)
-              mkPos :: Int -> Double
-              mkPos idx =
-                  if foundCitSection
-                  then 1
-                  else (skippedLines + fromIntegral idx) / allLines
+              (rawLines, mkPos) =
+                  case input of
+                    InStructured si ->
+                        ( F.toList $ si_referenceCandidates si
+                        , const Nothing
+                        )
+                    InRawText x ->
+                        case rt_referenceCorpus x of
+                          Just refCorpus ->
+                              ( filter (not . T.null) $ map T.strip $ T.lines refCorpus
+                              , const Nothing
+                              )
+                          Nothing ->
+                              let txtRaw = rt_textCorpus x
+                                  rl =
+                                      filter (not . T.null) $ map T.strip $ T.lines $
+                                      T.drop ubound txtRaw
+                                  allLines =
+                                      fromIntegral $ length (map T.strip $ T.lines txtRaw) + 1
+                                  skippedLines = allLines - fromIntegral (length rawLines)
+                              in ( rl
+                                 , \(idx :: Int) ->
+                                       Just $ (skippedLines + fromIntegral idx) / allLines
+                                 )
               isGoodLine (ln, _) =
                   not $ isBadRefLine ln
               cicCand =
@@ -380,7 +379,7 @@ extractCitInfoLines txtRaw markerCands =
                   in wordMatch "proceeding" 0.5 + wordMatch "isbn" 0.5
                      + wordMatch "doi" 0.5 + wordMatch "pp." 0.5
               mainScore = (yearScore * 0.5) + (2 * nameScore) + fs + lineScore
-              totalScore = mainScore + (percPos * 0.3)
+              totalScore = mainScore + (fromMaybe 0 percPos * 0.3)
               oneMainMatch =
                   yearScore > 0 || nameScore > 0 || fs > 0.5
           in if mainScore > 1.0 && oneMainMatch
@@ -413,8 +412,3 @@ isBadRefLine t =
           || length wrds < 4 -- less than 4 words
           || length (filter goodWord wrds) < 3 -- less than 3 proper words
           || pnr > 0.3 -- more than 30% numbers
-
--- regex taken from parscit
-refSectionIntro :: Regex
-refSectionIntro =
-    [reM|\b(References?|REFERENCES?|Bibliography|BIBLIOGRAPHY|References?\s+and\s+Notes?|References?\s+Cited|REFERENCES?\s+CITED|REFERENCES?\s+AND\s+NOTES?|LITERATURE?\s+CITED?):?\s*$|]

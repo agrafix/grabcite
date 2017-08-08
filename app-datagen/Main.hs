@@ -91,7 +91,7 @@ main =
        logNote $ "Unhandled pdfs: " <> showText (length todoPdfs)
        withRefCache (outDir </> [relfile|ref_cache.json|]) $ \rc ->
            workLoop (c_textMode cfg) (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state
-           todoPdfs (Cfg rc id)
+           todoPdfs (Cfg rc)
 
 sSplit :: (Char -> (T.Text, T.Text) -> Bool) -> T.Text -> [T.Text]
 sSplit decisionFun txtIn =

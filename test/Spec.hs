@@ -89,7 +89,7 @@ main =
            do res <- parseIceDocument <$> BS.readFile (toFilePath jsonFile)
               shouldSatisfy res isRight
 
-       let cfg = Cfg { c_refCache = rc, c_preNodeSplit = id }
+       let cfg = Cfg { c_refCache = rc }
        describe "citation extractor" $ forM_ testCases $ \(pdfFile, ymlFile) ->
            do describe ("testcase " <> toFilePath (filename pdfFile)) $
                   do res <- runIO (getCitationsFromPdf cfg pdfFile)

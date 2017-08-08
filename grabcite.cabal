@@ -23,6 +23,9 @@ library
                      , GrabCite.Stats
                      , GrabCite.Context
                      , GrabCite.GlobalId
+                     , GrabCite.Pipeline
+                     , GrabCite.Pipeline.PdfToText
+                     , GrabCite.Pipeline.IceCite
                      , GrabCite.IceCite.Types
                      , Util.Regex
   other-modules:       Util.Pdf
