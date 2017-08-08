@@ -17,6 +17,7 @@ import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.GlobalId
 import Util.Regex
+import qualified Data.ByteString as BS
 
 import Control.Concurrent.Async
 import Control.Exception
@@ -46,6 +47,7 @@ data Config w
     { c_inDir :: w ::: FilePath <?> "Directory holding the paper PDFs"
     , c_recursive :: w ::: Bool <?> "Should we recursively look for papers in input dir?"
     , c_textMode :: w ::: Bool <?> "Is the directory already holding text files?"
+    , c_iceCiteMode :: w ::: Bool <?> "Is the directory holding ice-cite files?"
     , c_outDir :: w ::: FilePath <?> "Directory to write the output to"
     , c_jobs :: w ::: Int <?> "Number of concurrent tasks to run"
     , c_context :: w ::: Int <?> "Number of words before and after to consider as context (context mode)"
@@ -64,6 +66,11 @@ modifiers =
     { fieldNameModifier = fieldNameModifier lispCaseModifiers . drop 2
     }
 
+data InMode
+    = InText
+    | InPdf
+    | InIceCite
+
 main :: IO ()
 main =
     withGlobalLogging (LogConfig Nothing True) $
@@ -74,6 +81,12 @@ main =
        inDir <- handleDir (c_inDir cfg)
        outDir <- handleDir (c_outDir cfg)
        createDirIfMissing True outDir
+       mode <-
+           case (c_textMode cfg, c_iceCiteMode cfg) of
+             (False, False) -> pure InPdf
+             (True, False) -> pure InText
+             (False, True) -> pure InIceCite
+             (True, True) -> fail "Can not use textMode and iceCite mode!"
        let descender =
                if c_recursive cfg
                then Just (\_ _ __ -> pure $ WalkExclude [])
@@ -81,16 +94,22 @@ main =
            outwriter _ _ files =
                do let pdfFiles =
                           Seq.fromList $
-                          filter (\f -> fileExtension f == if c_textMode cfg then ".txt" else ".pdf") files
+                          flip filter files $
+                          let ext =
+                                  case mode of
+                                    InText -> ".txt"
+                                    InPdf -> ".pdf"
+                                    InIceCite -> ".json"
+                          in \f -> fileExtension f == ext
                   pure pdfFiles
        (out :: Seq.Seq (Path Abs File)) <-
            walkDirAccum descender outwriter inDir
-       logInfo $ "Found " <> showText (length out) <> " pdfs in " <> showText inDir
+       logInfo $ "Found " <> showText (length out) <> " in files in " <> showText inDir
        state <- loadState outDir
        let todoPdfs = filter (not . flip S.member (s_completed state)) $ F.toList out
-       logNote $ "Unhandled pdfs: " <> showText (length todoPdfs)
+       logNote $ "Unhandled files: " <> showText (length todoPdfs)
        withRefCache (outDir </> [relfile|ref_cache.json|]) $ \rc ->
-           workLoop (c_textMode cfg) (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state
+           workLoop mode (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state
            todoPdfs (Cfg rc)
 
 sSplit :: (Char -> (T.Text, T.Text) -> Bool) -> T.Text -> [T.Text]
@@ -173,15 +192,15 @@ sentenceDecide c (before, after)
           T.any (\cx -> cx =='.' || cx == ',') . T.take 3
       beforeRev = T.reverse before
 
-workLoop :: Bool -> Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> Cfg -> IO ()
-workLoop textMode ctxWrite ctxWords jobs outDir st todoQueue rc =
+workLoop :: InMode -> Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> Cfg -> IO ()
+workLoop mode ctxWrite ctxWords jobs outDir st todoQueue rc =
     do let upNext = take jobs todoQueue
            todoQueue' = drop jobs todoQueue
        cmarkers <-
            fmap catMaybes $
            forConcurrently upNext $ \f ->
            do cm <-
-                  try $! handlePdf textMode rc ctxWords f
+                  try $! handlePdf mode rc ctxWords f
               case cm of
                 Left (ex :: SomeException) ->
                     do logError ("Failed to work on " <> showText f <> ": " <> showText ex)
@@ -217,7 +236,7 @@ workLoop textMode ctxWrite ctxWords jobs outDir st todoQueue rc =
        let st' = foldl' updateState st cmarkers
        writeState outDir st'
        if not (null todoQueue')
-          then workLoop textMode ctxWrite ctxWords jobs outDir st' todoQueue' rc
+          then workLoop mode ctxWrite ctxWords jobs outDir st' todoQueue' rc
           else do logInfo "All done"
                   pure ()
 
@@ -246,12 +265,13 @@ updateState st (f, cxm) =
                }
     in foldl' updateCxm baseSt cxm
 
-handlePdf :: Bool -> Cfg -> Int -> Path Abs File -> IO (Maybe DblpPaper, [ContextedMarker], T.Text)
-handlePdf textMode rc ctxWords fp =
+handlePdf :: InMode -> Cfg -> Int -> Path Abs File -> IO (Maybe DblpPaper, [ContextedMarker], T.Text)
+handlePdf mode rc ctxWords fp =
     do cits <-
-           if textMode
-           then Just <$> getCitationsFromTextFile rc fp
-           else getCitationsFromPdf rc fp
+           case mode of
+             InText -> Just <$> getCitationsFromTextFile rc fp
+             InPdf -> getCitationsFromPdf rc fp
+             InIceCite -> BS.readFile (toFilePath fp) >>= getCitationsFromIceCiteJson rc
        case cits of
          Nothing ->
              do logError ("Failed to get citations from " <> showText fp)
