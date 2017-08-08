@@ -24,13 +24,15 @@ conv :: IceDocument -> StructuredIn
 conv doc =
     StructuredIn
     { si_title =
-            let t = V.filter (\p -> ip_role p == IrTitle) allParagraphs
+            let t =
+                    V.filter (\p -> ip_role p == IrTitle || ip_role p == IrHeaderOther)
+                    allParagraphs
             in if V.null t
                   then Nothing
                   else Just (T.intercalate "\n" $ V.toList $ V.map ip_text t)
     , si_textCorpus =
             T.intercalate "\n" $ V.toList $ V.map ip_text $
-            V.filter (\p -> ip_role p == IrBodyText) allParagraphs
+            V.filter (\p -> ip_role p == IrBodyText || ip_role p == IrUnknown) allParagraphs
     , si_referenceCandidates =
             V.map ip_text $
             V.filter (\p -> ip_role p == IrReference) allParagraphs

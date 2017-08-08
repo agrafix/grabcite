@@ -59,5 +59,10 @@ go :: Cfg -> Input -> IO (ExtractionResult (Maybe DblpPaper))
 go rc txt =
     do let extracted = extractCitations txt
        nodes' <- annotateReferences (c_refCache rc) (er_nodes extracted)
-       paperId <- getPaperId (c_refCache rc) (er_nodes extracted)
+       paperId <-
+           getPaperId (c_refCache rc) $
+           case txt of
+             InStructured (StructuredIn { si_title = Just title }) ->
+                 Left title
+             _ -> Right (er_nodes extracted)
        pure $ extracted { er_nodes = nodes', er_paperId = paperId }

@@ -8,12 +8,12 @@ import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.IceCite.Types
 
+import Control.Logger.Simple
 import Control.Monad
 import Data.Aeson
 import Data.Either
 import Data.List
 import Data.Maybe
-import Data.Monoid
 import Data.Yaml
 import Path
 import Path.IO
@@ -56,28 +56,34 @@ computeTestCases =
     walkDirAccum (Just $ \_ _ _ -> pure $ WalkExclude []) ow testDataDir
     where
       ow _ _ files =
-          do let pdfFiles =
-                     filter (\f -> fileExtension f == ".pdf") files
+          do let inFiles =
+                     flip filter files $ \f ->
+                     let ext = fileExtension f
+                     in case ext of
+                          ".pdf" -> True
+                          ".json" -> True
+                          _ -> False
                  ymlFiles =
                      filter (\f -> fileExtension f == ".yml") files
              ymlDummy <-
                  mapM (setFileExtension "dummy") ymlFiles
-             let findParing pdfFile =
-                     do fn <- setFileExtension "dummy" (filename pdfFile)
+             let findParing inFile =
+                     do fn <- setFileExtension "dummy" (filename inFile)
                         let mkPair yml =
                                 (,)
-                                <$> pure pdfFile
+                                <$> pure inFile
                                 <*> setFileExtension "yml" yml
                         pair <- T.mapM mkPair $ find (\y -> filename y == fn) ymlDummy
                         case pair of
-                          Nothing -> fail ("Missing .yml file for " <> toFilePath pdfFile)
+                          Nothing -> fail ("Missing .yml file for " <> toFilePath inFile)
                           Just ok -> pure ok
              parings <-
-                 mapM findParing pdfFiles
+                 mapM findParing inFiles
              pure $ Seq.fromList parings
 
 main :: IO ()
 main =
+    withGlobalLogging (LogConfig Nothing True) $
     withMemRefCache $ \rc ->
     hspec $
     do testCases <- runIO computeTestCases
@@ -90,9 +96,17 @@ main =
               shouldSatisfy res isRight
 
        let cfg = Cfg { c_refCache = rc }
-       describe "citation extractor" $ forM_ testCases $ \(pdfFile, ymlFile) ->
-           do describe ("testcase " <> toFilePath (filename pdfFile)) $
-                  do res <- runIO (getCitationsFromPdf cfg pdfFile)
+       describe "citation extractor" $ forM_ testCases $ \(inFile, ymlFile) ->
+           do describe ("testcase " <> toFilePath (filename inFile)) $
+                  do res <-
+                         runIO $
+                         do logNote ("Working on " <> showText (toFilePath inFile))
+                            case fileExtension inFile of
+                                ".pdf" -> getCitationsFromPdf cfg inFile
+                                ".json" ->
+                                    BS.readFile (toFilePath inFile) >>= getCitationsFromIceCiteJson cfg
+                                ext ->
+                                    fail ("Unknown input extension: " ++ show ext)
                      info <-
                          runIO $
                          do r <- decodeFileEither (toFilePath ymlFile)

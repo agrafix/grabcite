@@ -111,7 +111,8 @@ extractCitations input =
               Nothing -> allMarkerCands
               Just mp -> filter (\m -> cmc_markerPair m == mp) allMarkerCands
         debugMsg =
-            "Likely citation bounds: " <> showText bestPair <> "\n"
+            "Text corpus lengths: " <> showText (T.length textCorpus) <> "\n"
+            <> "Likely citation bounds: " <> showText bestPair <> "\n"
             <> "Initial marker candidates: " <> showText allMarkerCands <> "\n"
             <> "With info: " <> showText withInfo
         withInfo =
