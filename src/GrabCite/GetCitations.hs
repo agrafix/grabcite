@@ -9,10 +9,16 @@ module GrabCite.GetCitations
     , CitInfoCand(..), CitMarkerCand(..)
     , ContentNode(..), ContentRef(..)
     , getTextNode, getRefNode
+      -- * for testing only
+    , isBadRefLine
+    , extractCitInfoLines
+    , extractRefNames
+    , extractYears
     )
 where
 
 import GrabCite.Pipeline
+import qualified Data.Set as S
 
 import Control.Logger.Simple
 import Control.Monad.RWS.Strict
@@ -28,6 +34,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
+import qualified Text.EditDistance as TED
 
 data CitMarkerCand
     = CitMarkerCand
@@ -331,17 +338,19 @@ extractCitInfoLines input markerCands =
       runMarkerCand mc ref =
           let mp = mkMarkerCandMap mc ref
               (_, ubound) = cmc_range mc
-              (rawLines, mkPos) =
+              (rawLines, mkPos, preCatRefLine) =
                   case input of
                     InStructured si ->
                         ( F.toList $ si_referenceCandidates si
                         , const Nothing
+                        , True
                         )
                     InRawText x ->
                         case rt_referenceCorpus x of
                           Just refCorpus ->
                               ( filter (not . T.null) $ map T.strip $ T.lines refCorpus
                               , const Nothing
+                              , False
                               )
                           Nothing ->
                               let txtRaw = rt_textCorpus x
@@ -354,12 +363,14 @@ extractCitInfoLines input markerCands =
                               in ( rl
                                  , \(idx :: Int) ->
                                        Just $ (skippedLines + fromIntegral idx) / allLines
+                                 , False
                                  )
               isGoodLine (ln, _) =
                   not $ isBadRefLine ln
               cicCand =
                   sortOn (Down . cic_score) $
-                  mapMaybe (handleLine mp . second mkPos) $ filter isGoodLine $ zip rawLines [1..]
+                  mapMaybe (handleLine preCatRefLine mp . second mkPos) $ filter isGoodLine $
+                  zip rawLines [1..]
           in pureDebug
                ("Cands for " <> showText mc <> ": " <> showText cicCand) $
              listToMaybe cicCand
@@ -370,35 +381,72 @@ extractCitInfoLines input markerCands =
           , cic_ref = ref
           , cic_marker = mc
           }
-      handleLine (lci, ref, mc) (line, percPos) =
+      handleLine preCatRefLine (lci, ref, mc) (line, percPos) =
           let yearScore = matchScore (lci_years lci) line
               lowerLine = T.toLower line
               nameScore = matchScore (lci_names lci) lowerLine
               fs = fullScore (lci_full lci) line
+              refEdit = prepareEditDist ref
+              lineEdit = prepareEditDist line
+              refLen = max 1 $ T.length refEdit
+              editDistance =
+                  TED.restrictedDamerauLevenshteinDistance TED.defaultEditCosts
+                  (T.unpack refEdit) (T.unpack $ T.take refLen lineEdit)
+              editScore :: Double
+              editScore =
+                  1 - (fromIntegral editDistance / fromIntegral refLen)
+              wordScore =
+                  getWordScore refEdit (T.take refLen lineEdit)
               lineScore =
                   let wordMatch w pts = if w `T.isInfixOf` line then pts else 0
                   in wordMatch "proceeding" 0.5 + wordMatch "isbn" 0.5
                      + wordMatch "doi" 0.5 + wordMatch "pp." 0.5
-              mainScore = (yearScore * 0.5) + (2 * nameScore) + fs + lineScore
+                     + (if preCatRefLine then 0.5 else 0)
+              mainScore =
+                  (yearScore * 0.5) + (2 * nameScore) + fs + lineScore
+                  + editScore * 0.5
+                  + wordScore
               totalScore = mainScore + (fromMaybe 0 percPos * 0.3)
               oneMainMatch =
                   yearScore > 0 || nameScore > 0 || fs > 0.5
+                  || (editDistance <= 2 && editScore > 0.2)
+                  || wordScore > 0.8
           in if mainScore > 1.0 && oneMainMatch
              then Just (mkCand line (totalScore, (ref, mc)))
-             else Nothing
+             else pureDebug ("Bad score for " <> showText ref <> " vs "
+                             <> showText line <> ": " <> showText totalScore <> ". Edit dist = "
+                             <> showText editDistance <> ". Edit score = " <> showText editScore)
+                  Nothing
       mkMarkerCandMap mc ref =
           let (o, c) = cmc_markerPair mc
               years = extractYears ref
               names =
-                  filter (\t -> T.length t >= 2 && t `notElem` years && not (T.all isNumber t)) $
-                  map (T.toLower . T.strip . T.filter (/= '.')) $
-                  T.split (\ch -> ch == ',' || ch == '&') $ T.replace "et al" "" ref
+                  extractRefNames years ref
               fullBase = T.singleton o <> ref <> T.singleton c
               fullMore =
                   if T.all isNumber ref && T.length ref <= 2
                   then [ref <> "."]
                   else []
           in (LineCitInfo years names (fullBase : fullMore), ref, mc)
+
+getWordScore :: T.Text -> T.Text -> Double
+getWordScore t1 t2 =
+    let getWords = filter (\t -> T.length t >= 2) . T.words
+        w1 = S.fromList (getWords t1)
+        w2 = S.fromList (getWords t2)
+        l1 = length (w1 `S.intersection` w2)
+        l2 = 1 + (length (w1 `S.union` w2))
+    in fromIntegral l1 / fromIntegral l2
+
+prepareEditDist :: T.Text -> T.Text
+prepareEditDist x =
+    T.unwords $ T.words $ T.map (\c -> if isAlpha c then c else ' ') $ T.toLower x
+
+extractRefNames :: [T.Text] -> T.Text -> [T.Text]
+extractRefNames years ref =
+    filter (\t -> T.length t >= 2 && t `notElem` years && not (T.all isNumber t)) $
+    map (T.toLower . T.strip . T.filter (/= '.')) $
+    T.split (\ch -> ch == ',' || ch == '&' || isDigit ch) $ T.replace "et al" "" ref
 
 isBadRefLine :: T.Text -> Bool
 isBadRefLine t =

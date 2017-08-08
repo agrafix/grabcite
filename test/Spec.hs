@@ -7,6 +7,7 @@ import GrabCite.Annotate
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.IceCite.Types
+import GrabCite.Pipeline
 
 import Control.Logger.Simple
 import Control.Monad
@@ -22,6 +23,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Traversable as T
+import qualified Data.Vector as V
 
 data PaperInfo
     = PaperInfo
@@ -81,6 +83,28 @@ computeTestCases =
                  mapM findParing inFiles
              pure $ Seq.fromList parings
 
+goodRefLines :: [T.Text]
+goodRefLines =
+    [ "M. Collins and Y. Singer. 1999. Unsupervised models"
+    ]
+
+sampleMarkerCand :: CitMarkerCand
+sampleMarkerCand =
+    CitMarkerCand
+    { cmc_references = ["Collins and Singer, 1999"]
+    , cmc_range = (8544,8569)
+    , cmc_markerPair = ('(',')')
+    }
+
+sampleInput :: Input
+sampleInput =
+    InStructured
+    StructuredIn
+    { si_title = Nothing
+    , si_textCorpus = ""
+    , si_referenceCandidates = V.fromList goodRefLines
+    }
+
 main :: IO ()
 main =
     withGlobalLogging (LogConfig Nothing True) $
@@ -88,7 +112,22 @@ main =
     hspec $
     do testCases <- runIO computeTestCases
        jsonFiles <- runIO computeJsonFiles
-
+       describe "get citations" $
+           do describe "extract ref names + years" $
+                  it "works" $
+                  do let years =
+                             extractYears "M. Collins and Y. Singer. 1999. Unsupervised models"
+                     years `shouldBe` ["1999"]
+                     let names =
+                             extractRefNames years "M. Collins and Y. Singer. 1999. Unsupervised models"
+                     names `shouldBe` ["m collins and y singer","unsupervised models"]
+              describe "extract cit info lines" $
+                  do it "smoke 1" $
+                         length (extractCitInfoLines sampleInput [sampleMarkerCand]) `shouldBe` 1
+              describe "bad ref line" $
+                  forM_ goodRefLines $ \rl ->
+                  it ("should see " <> show rl <> " as good ref line") $
+                  isBadRefLine rl `shouldBe` False
        describe "ice cite json parser" $
            forM_ jsonFiles $ \jsonFile ->
            it ("should parse " <> toFilePath jsonFile) $

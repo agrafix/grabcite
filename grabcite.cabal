@@ -54,7 +54,7 @@ library
                        superrecord,
                        vector,
                        simple-logger,
-                       cassava
+                       edit-distance
   default-language:    Haskell2010
   ghc-options:         -Wall
 
@@ -110,6 +110,7 @@ test-suite grabcite-test
                      , yaml
                      , aeson
                      , bytestring
+                     , vector
                      , simple-logger
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
