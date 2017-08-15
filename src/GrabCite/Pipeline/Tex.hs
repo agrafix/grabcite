@@ -7,7 +7,7 @@
 module GrabCite.Pipeline.Tex
     ( texAsInput
       -- * for testing
-    , parseTex
+    , parseTex, Body(..), Cmd(..)
       -- * for debugging
     , tryIt
     )

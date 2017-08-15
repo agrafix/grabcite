@@ -8,6 +8,7 @@ import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.IceCite.Types
 import GrabCite.Pipeline
+import GrabCite.Pipeline.Tex
 
 import Control.Logger.Simple
 import Control.Monad
@@ -22,6 +23,7 @@ import qualified Data.ByteString as BS
 import qualified Data.Sequence as Seq
 import qualified Data.Set as S
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
@@ -43,6 +45,18 @@ testDataDir = [reldir|test-data|]
 
 testJsonDir :: Path Rel Dir
 testJsonDir = [reldir|test-json|]
+
+testTexDir :: Path Rel Dir
+testTexDir = [reldir|test-tex|]
+
+computeTexFiles :: IO (Seq.Seq (Path Abs File))
+computeTexFiles =
+    walkDirAccum (Just $ \_ _ _ -> pure $ WalkExclude []) ow testTexDir
+    where
+      ow _ _ files =
+          do let jsonFiles =
+                     filter (\f -> fileExtension f == ".tex") files
+             pure $ Seq.fromList jsonFiles
 
 computeJsonFiles :: IO (Seq.Seq (Path Abs File))
 computeJsonFiles =
@@ -112,6 +126,7 @@ main =
     hspec $
     do testCases <- runIO computeTestCases
        jsonFiles <- runIO computeJsonFiles
+       texFiles <- runIO computeTexFiles
        describe "get citations" $
            do describe "extract ref names + years" $
                   it "works" $
@@ -133,7 +148,11 @@ main =
            it ("should parse " <> toFilePath jsonFile) $
            do res <- parseIceDocument <$> BS.readFile (toFilePath jsonFile)
               shouldSatisfy res isRight
-
+       describe "tex parser" $
+           forM_ texFiles $ \texFile ->
+           it ("should parse " <> toFilePath texFile) $
+           do res <- flip parseTex False <$> T.readFile (toFilePath texFile)
+              shouldSatisfy res isRight
        let cfg = Cfg { c_refCache = rc }
        describe "citation extractor" $ forM_ testCases $ \(inFile, ymlFile) ->
            do describe ("testcase " <> toFilePath (filename inFile)) $
