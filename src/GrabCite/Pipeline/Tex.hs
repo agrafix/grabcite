@@ -46,7 +46,7 @@ parseTex inp debug =
 data Body
     = BCmd !Cmd
     | BMath
-    | BEnv !T.Text ![Body]
+    | BEnv !Cmd ![Body]
     | BText !T.Text
     | BMany ![Body]
     deriving (Show, Eq)
@@ -161,20 +161,24 @@ cmdIdent = (lexeme . try) (p >>= fixup)
              "\\end" -> fail "Found end"
              _ -> pure (T.drop 1 $ T.pack x)
 
+commandArgParser :: Parser [Either [Body] [Body]]
+commandArgParser =
+    many $
+    try (Left <$> lexeme (curly (many $ argBodyP True)))
+    <|> (Right <$> lexeme (bracket (many $ argBodyP False)))
+
+mkCmd :: T.Text -> [Either [Body] [Body]] -> Cmd
+mkCmd name args = Cmd name (lefts args) (rights args)
+
 command :: Parser Cmd
 command =
     trace "CMD" $
     do name <- cmdIdent
        args <-
-           trace ("args for " ++ show name) $
-           let withArgs =
-                   many $
-                   try (Left <$> lexeme (curly (many $ argBodyP True)))
-                   <|> (Right <$> lexeme (bracket (many $ argBodyP False)))
-           in withArgs
+           trace ("args for " ++ show name) $ commandArgParser
        pure $
            trace ("ARGS: " ++ show args) $
-           Cmd name (lefts args) (rights args)
+           mkCmd name args
 
 math :: Parser ()
 math =
@@ -198,15 +202,17 @@ math =
         cond c =
             c /= '$'
 
-env :: Parser a -> Parser (T.Text, a)
+env :: Parser a -> Parser (Cmd, a)
 env action =
     trace "ENV" $
     do name <-
            T.pack <$>
            beginP (some alphaNumChar <* optional (char '*'))
+       args <-
+           trace ("args for " ++ show name) $ commandArgParser
        r <- trace ("ENV: " ++ show name) action
        endP (symbol name <* optional (char '*'))
-       pure (name, r)
+       pure (mkCmd name args, r)
 
 text :: Bool -> Parser T.Text
 text allowBrackets =
