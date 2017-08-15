@@ -5,16 +5,20 @@
 --
 {-# LANGUAGE OverloadedStrings #-}
 module GrabCite.Pipeline.Tex
-    ( texAsInput, tryIt )
+    ( texAsInput
+      -- * for testing
+    , parseTex
+      -- * for debugging
+    , tryIt
+    )
 where
 
-import Control.Monad
-import Data.Maybe
-import Debug.Trace
 import GrabCite.Pipeline
 
+import Control.Monad
 import Data.Either
 import Data.Void
+import Debug.Trace
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Data.Text as T
@@ -28,8 +32,57 @@ texAsInput = undefined
 
 tryIt :: IO ()
 tryIt =
-    do i <- T.readFile "test-tex/1010.2903.tex"
-       parseTest (dbg "t" docP) i
+    do i <- T.readFile "test-tex/mu-regular-epsilon.tex"
+       case parseTex i True of
+         Left errMsg -> putStrLn errMsg
+         Right ok -> print ok
+
+parseTex :: T.Text -> Bool -> Either String [Body]
+parseTex inp debug =
+    case parse ((if debug then dbg "t" else id) docP) "<tex input>" inp of
+      Left errMsg -> Left (parseErrorPretty errMsg)
+      Right ok -> Right $ simpleBodyList ok
+
+data Body
+    = BCmd !Cmd
+    | BMath
+    | BEnv !T.Text ![Body]
+    | BText !T.Text
+    | BMany ![Body]
+    deriving (Show, Eq)
+
+simplifyBody :: Body -> Body
+simplifyBody bdy =
+    case bdy of
+      BCmd c -> BCmd (simplifyCmd c)
+      BMath -> BMath
+      BText t -> BText t
+      BEnv e b -> BEnv e (simpleBodyList b)
+      BMany x -> BMany (simpleBodyList x)
+
+simpleBodyList :: [Body] -> [Body]
+simpleBodyList lst =
+    case lst of
+      (BMany x : more) -> simpleBodyList x ++ simpleBodyList more
+      (x : more) -> (simplifyBody x : simpleBodyList more)
+      [] -> []
+
+data Cmd
+    = Cmd
+    { c_name :: !T.Text
+    , c_bArgs :: ![[Body]]
+    , c_cArgs :: ![[Body]]
+    } deriving (Show, Eq)
+
+simplifyCmd :: Cmd -> Cmd
+simplifyCmd c =
+    c
+    { c_bArgs = handleArgs (c_bArgs c)
+    , c_cArgs = handleArgs (c_cArgs c)
+    }
+    where
+      handleArgs =
+          filter (not . null) . fmap (fmap simplifyBody)
 
 sc :: Parser ()
 sc = L.space space1 lineCmnt blockCmnt
@@ -70,14 +123,6 @@ endP s =
        _ <- curly s
        pure ()
 
-data Body
-    = BCmd !Cmd
-    | BMath
-    | BEnv !T.Text ![Body]
-    | BText !T.Text
-    | BMany ![Body]
-    deriving (Show, Eq)
-
 bodyP :: Parser Body
 bodyP =
     trace "BODY" $
@@ -100,13 +145,6 @@ argBodyP allowBrackets =
     , BMany <$> ([] <$ try comment)
     , BMany <$> curly (some $ argBodyP True)
     ]
-
-data Cmd
-    = Cmd
-    { c_name :: !T.Text
-    , c_bArgs :: ![[Body]]
-    , c_cArgs :: ![[Body]]
-    } deriving (Show, Eq)
 
 comment :: Parser ()
 comment =
