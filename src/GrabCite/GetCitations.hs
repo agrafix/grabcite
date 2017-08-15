@@ -97,11 +97,74 @@ data ExtractionResult t
     } deriving (Show, Eq)
 
 extractCitations :: Input -> ExtractionResult ()
-extractCitations input =
+extractCitations ip =
+    case ip of
+      InCited ci -> handlePreCited ci
+      InRawText rt -> extractCitations' (Left rt)
+      InStructured s -> extractCitations' (Right s)
+
+
+handlePreCited :: CitedIn -> ExtractionResult ()
+handlePreCited ci =
+    ExtractionResult
+    { er_paperId = ()
+    , er_citations = mkCitation <$> HM.toList (ci_references ci)
+    , er_markers = mkMarker (F.toList $ ci_textCorpus ci)
+    , er_nodes = mkNode (F.toList $ ci_textCorpus ci)
+    }
+    where
+      mkRef key =
+          case HM.lookup key (ci_references ci) of
+            Nothing ->
+                pureWarn ("Unknown reference " <> showText key) Nothing
+            Just info ->
+                Just ContentRef
+                { cr_info = info
+                , cr_origMarker = "[" <> key <> "]"
+                , cr_score = 100
+                , cr_tag = ()
+                }
+      mkNode lst =
+          case lst of
+            [] -> []
+            (tok : more) ->
+                let t =
+                        case tok of
+                          TtFormula -> Just $ CnText "<formula>"
+                          TtCite key -> CnRef <$> mkRef key
+                          TtText x -> Just $ CnText x
+                in case t of
+                     Just x -> (x : mkNode more)
+                     Nothing -> mkNode more
+      mkMarker lst =
+          case lst of
+            [] -> []
+            (tok : more) ->
+                case tok of
+                  TtCite key ->
+                      ( CitMarkerCand [key] (0, 0) ('[', ']')
+                      : mkMarker more
+                      )
+                  _ -> mkMarker more
+      mkCitation (key, val) =
+          CitInfoCand
+          { cic_score = 100
+          , cic_line = val
+          , cic_ref = key
+          , cic_marker =
+                  CitMarkerCand
+                  { cmc_references = [key]
+                  , cmc_range = (0, 0) -- TODO ?
+                  , cmc_markerPair = ('[', ']')
+                  }
+          }
+
+extractCitations' :: Either RawText StructuredIn -> ExtractionResult ()
+extractCitations' input =
     let textCorpus =
             case input of
-              InStructured si -> si_textCorpus si
-              InRawText rt -> rt_textCorpus rt
+              Right si -> si_textCorpus si
+              Left rt -> rt_textCorpus rt
         allMarkerCands =
             collectMarkerCands textCorpus
         countMarkerPair hm mc =
@@ -329,7 +392,8 @@ bestCands =
       grouper hm el =
           HM.insertWith (++) (cic_ref el) [el] hm
 
-extractCitInfoLines :: Input -> [CitMarkerCand] -> [CitInfoCand]
+extractCitInfoLines ::
+    Either RawText StructuredIn -> [CitMarkerCand] -> [CitInfoCand]
 extractCitInfoLines input markerCands =
     catMaybes $
     flip concatMap markerCands $ \mc -> flip map (cmc_references mc) $ \ref ->
@@ -340,12 +404,12 @@ extractCitInfoLines input markerCands =
               (_, ubound) = cmc_range mc
               (rawLines, mkPos, preCatRefLine) =
                   case input of
-                    InStructured si ->
+                    Right si ->
                         ( F.toList $ si_referenceCandidates si
                         , const Nothing
                         , True
                         )
-                    InRawText x ->
+                    Left x ->
                         case rt_referenceCorpus x of
                           Just refCorpus ->
                               ( filter (not . T.null) $ map T.strip $ T.lines refCorpus

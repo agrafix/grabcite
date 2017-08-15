@@ -8,7 +8,7 @@ import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.IceCite.Types
 import GrabCite.Pipeline
-import GrabCite.Pipeline.Tex
+import Util.Tex
 
 import Control.Logger.Simple
 import Control.Monad
@@ -78,6 +78,7 @@ computeTestCases =
                      in case ext of
                           ".pdf" -> True
                           ".json" -> True
+                          ".tex" -> True
                           _ -> False
                  ymlFiles =
                      filter (\f -> fileExtension f == ".yml") files
@@ -110,9 +111,8 @@ sampleMarkerCand =
     , cmc_markerPair = ('(',')')
     }
 
-sampleInput :: Input
+sampleInput :: StructuredIn
 sampleInput =
-    InStructured
     StructuredIn
     { si_title = Nothing
     , si_textCorpus = ""
@@ -138,7 +138,7 @@ main =
                      names `shouldBe` ["m collins and y singer","unsupervised models"]
               describe "extract cit info lines" $
                   do it "smoke 1" $
-                         length (extractCitInfoLines sampleInput [sampleMarkerCand]) `shouldBe` 1
+                         length (extractCitInfoLines (Right sampleInput) [sampleMarkerCand]) `shouldBe` 1
               describe "bad ref line" $
                   forM_ goodRefLines $ \rl ->
                   it ("should see " <> show rl <> " as good ref line") $
@@ -163,6 +163,16 @@ main =
                                 ".pdf" -> getCitationsFromPdf cfg inFile
                                 ".json" ->
                                     BS.readFile (toFilePath inFile) >>= getCitationsFromIceCiteJson cfg
+                                ".tex" ->
+                                    do bblFile <-
+                                           setFileExtension "bbl" inFile
+                                       x <- BS.readFile (toFilePath inFile)
+                                       hasBbl <- doesFileExist bblFile
+                                       y <-
+                                           if hasBbl
+                                           then Just <$> BS.readFile (toFilePath bblFile)
+                                           else pure Nothing
+                                       getCitationsFromTex cfg x y
                                 ext ->
                                     fail ("Unknown input extension: " ++ show ext)
                      info <-

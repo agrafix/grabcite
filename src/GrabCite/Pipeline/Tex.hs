@@ -4,233 +4,132 @@
 -- Prepare input from a Tex file
 --
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 module GrabCite.Pipeline.Tex
-    ( texAsInput
-      -- * for testing
-    , parseTex, Body(..), Cmd(..)
-      -- * for debugging
-    , tryIt
+    ( texAsInput, TexInput(..)
     )
 where
 
 import GrabCite.Pipeline
+import Util.Tex
 
-import Control.Monad
-import Data.Either
-import Data.Void
-import Debug.Trace
-import Text.Megaparsec
-import Text.Megaparsec.Char
+import Control.Logger.Simple
+import Control.Monad.State
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Data.Traversable as T
 
-type Parser = Parsec Void T.Text
-
-texAsInput :: T.Text -> Input
-texAsInput = undefined
-
-tryIt :: IO ()
-tryIt =
-    do i <- T.readFile "test-tex/mu-regular-epsilon.tex"
-       case parseTex i True of
-         Left errMsg -> putStrLn errMsg
-         Right ok -> print ok
-
-parseTex :: T.Text -> Bool -> Either String [Body]
-parseTex inp debug =
-    case parse ((if debug then dbg "t" else id) docP) "<tex input>" inp of
-      Left errMsg -> Left (parseErrorPretty errMsg)
-      Right ok -> Right $ simpleBodyList ok
-
-data Body
-    = BCmd !Cmd
-    | BMath
-    | BEnv !Cmd ![Body]
-    | BText !T.Text
-    | BMany ![Body]
-    deriving (Show, Eq)
-
-simplifyBody :: Body -> Body
-simplifyBody bdy =
-    case bdy of
-      BCmd c -> BCmd (simplifyCmd c)
-      BMath -> BMath
-      BText t -> BText t
-      BEnv e b -> BEnv e (simpleBodyList b)
-      BMany x -> BMany (simpleBodyList x)
-
-simpleBodyList :: [Body] -> [Body]
-simpleBodyList lst =
-    case lst of
-      (BMany x : more) -> simpleBodyList x ++ simpleBodyList more
-      (x : more) -> (simplifyBody x : simpleBodyList more)
-      [] -> []
-
-data Cmd
-    = Cmd
-    { c_name :: !T.Text
-    , c_bArgs :: ![[Body]]
-    , c_cArgs :: ![[Body]]
+data TexInput
+    = TexInput
+    { ti_doc :: !T.Text
+    , ti_bblFile :: !(Maybe T.Text)
     } deriving (Show, Eq)
 
-simplifyCmd :: Cmd -> Cmd
-simplifyCmd c =
-    c
-    { c_bArgs = handleArgs (c_bArgs c)
-    , c_cArgs = handleArgs (c_cArgs c)
+texAsInput :: TexInput -> Either String Input
+texAsInput ip =
+    do texAst <- parseTex (ti_doc ip) False
+       bibAst <- T.mapM (flip parseBbl False) (ti_bblFile ip)
+       let r =
+               flip execState initState $
+               do mapM_ handleBody texAst
+                  case bibAst of
+                    Just ast -> handleBib ast
+                    Nothing -> pure ()
+       pure (InCited r)
+
+type World m = MonadState CitedIn m
+
+initState :: CitedIn
+initState =
+    CitedIn
+    { ci_title = mempty
+    , ci_textCorpus = mempty
+    , ci_references = mempty
     }
+
+setTitle :: World m => T.Text -> m ()
+setTitle t =
+    modify' $ \ci ->
+    ci { ci_title = t }
+
+pushFormula :: World m => m ()
+pushFormula =
+    modify' $ \ci ->
+    ci { ci_textCorpus = ci_textCorpus ci Seq.|> TtFormula }
+
+pushText :: World m => T.Text -> m ()
+pushText t =
+    modify' $ \ci ->
+    ci { ci_textCorpus = ci_textCorpus ci Seq.|> TtText t }
+
+pushCite :: World m => T.Text -> m ()
+pushCite t =
+    modify' $ \ci ->
+    ci { ci_textCorpus = ci_textCorpus ci Seq.|> TtCite t }
+
+addReference :: World m => T.Text -> T.Text -> m ()
+addReference citeId t =
+    modify' $ \ci ->
+    ci { ci_references = HM.insert citeId t (ci_references ci) }
+
+handleBib :: World m => [Body] -> m ()
+handleBib bdy =
+    loop bdy bibRef
     where
-      handleArgs =
-          filter (not . null) . fmap (fmap simplifyBody)
+      bibRef = Nothing
+      loop els st =
+          case els of
+            [] ->
+                case st of
+                  Just (ref, txt) ->
+                      addReference ref txt
+                  Nothing -> pure ()
+            (x : xs) ->
+                case x of
+                  BEnv _ _ -> loop xs st
+                  BCmd (Cmd "bibitem" cargs _) ->
+                      do case st of
+                           Just (ref, txt) -> addReference ref txt
+                           Nothing -> pure ()
+                         case cargs of
+                           ((BText v : _) : _) ->
+                               loop xs (Just (v, ""))
+                           _ ->
+                               pureWarn
+                               ("Can not understand bibitem: " <> showText x) $
+                               loop xs Nothing
+                  BCmd _ -> loop xs st
+                  BMath -> loop xs st
+                  BText t ->
+                      case st of
+                        Just (ref, txt) ->
+                            loop xs $ Just (ref, txt <> t)
+                        Nothing -> loop xs st
+                  BMany more -> loop (more ++ xs) st
 
-sc :: Parser ()
-sc = L.space space1 lineCmnt blockCmnt
-  where
-    lineCmnt  = L.skipLineComment "%"
-    blockCmnt =
-        L.skipBlockComment "\\begin{comment}" "\\end{comment}"
-        <|> L.skipBlockComment "\\begin {comment}" "\\end {comment}"
-        <|> L.skipBlockComment "\\iffalse" "\\fi"
-
-lexeme :: Parser a -> Parser a
-lexeme = L.lexeme sc
-
-symbol :: T.Text -> Parser T.Text
-symbol = L.symbol sc
-
-curly :: Parser a -> Parser a
-curly = between (symbol "{") (symbol "}")
-
-bracket :: Parser a -> Parser a
-bracket = between (symbol "[") (symbol "]")
-
-docP :: Parser [Body]
-docP =
-    do _ <- skipManyTill anyChar (beginP $ symbol "document")
-       x <- some bodyP
-       endP $ symbol "document"
-       pure x
-
-beginP :: Parser a -> Parser a
-beginP s =
-    do _ <- try $ symbol "\\begin"
-       curly s
-
-endP :: Parser a -> Parser ()
-endP s =
-    do _ <- symbol "\\end"
-       _ <- curly s
-       pure ()
-
-bodyP :: Parser Body
-bodyP =
-    trace "BODY" $
-    choice
-    [ uncurry BEnv <$> env (many bodyP)
-    , BMath <$ try math
-    , BText <$> try (text True)
-    , BCmd <$> try command
-    , BMany <$> ([] <$ try comment)
-    , BMany <$> curly (some bodyP)
-    ]
-
-argBodyP :: Bool -> Parser Body
-argBodyP allowBrackets =
-    trace "BODY ARG" $
-    choice
-    [ BCmd <$> try command
-    , BMath <$ try math
-    , BText <$> try (text allowBrackets)
-    , BMany <$> ([] <$ try comment)
-    , BMany <$> curly (some $ argBodyP True)
-    ]
-
-comment :: Parser ()
-comment =
-    char '%' *> skipManyTill (notChar '\n') (void $ char '\n')
-
-cmdIdent :: Parser T.Text
-cmdIdent = (lexeme . try) (p >>= fixup)
-  where
-    p :: Parser String
-    p = (:) <$> char '\\' <*> some letterChar
-    fixup x =
-        do case x of
-             "\\begin" -> fail "Found begin"
-             "\\end" -> fail "Found end"
-             _ -> pure (T.drop 1 $ T.pack x)
-
-commandArgParser :: Parser [Either [Body] [Body]]
-commandArgParser =
-    many $
-    try (Left <$> lexeme (curly (many $ argBodyP True)))
-    <|> (Right <$> lexeme (bracket (many $ argBodyP False)))
-
-mkCmd :: T.Text -> [Either [Body] [Body]] -> Cmd
-mkCmd name args = Cmd name (lefts args) (rights args)
-
-command :: Parser Cmd
-command =
-    trace "CMD" $
-    do name <- cmdIdent
-       args <-
-           trace ("args for " ++ show name) $ commandArgParser
-       pure $
-           trace ("ARGS: " ++ show args) $
-           mkCmd name args
-
-math :: Parser ()
-math =
-    trace "MATH" $
-    doubleDollar <|> simpleDollar
-    where
-        doubleDollar =
-            do _ <- try $ symbol "$$"
-               _ <-
-                   skipSomeTill
-                   (mathVal <|> (char '$' <* notFollowedBy (char '$')))
-                   (symbol "$$")
-               pure ()
-        simpleDollar =
-            do _ <- try $ char '$'
-               _ <- skipSomeTill mathVal (char '$')
-               pure ()
-        mathVal =
-            try (char '\\' *> char '$')
-            <|> satisfy cond
-        cond c =
-            c /= '$'
-
-env :: Parser a -> Parser (Cmd, a)
-env action =
-    trace "ENV" $
-    do name <-
-           T.pack <$>
-           beginP (some alphaNumChar <* optional (char '*'))
-       args <-
-           trace ("args for " ++ show name) $ commandArgParser
-       r <- trace ("ENV: " ++ show name) action
-       endP (symbol name <* optional (char '*'))
-       pure (mkCmd name args, r)
-
-text :: Bool -> Parser T.Text
-text allowBrackets =
-    trace "TEXT" $
-    T.pack <$> some literalVal
-    where
-      literalVal =
-          try (char '\\' *> char '\\')
-          <|> try (char '\\' *> char '$')
-          <|> try (char '\\' *> char '{')
-          <|> try (char '\\' *> char '}')
-          <|> try (char '\\' *> char ' ')
-          <|> try (char '\\' *> char '\t')
-          <|> try (char '\\' *> char '"')
-          <|> try (char '\\' *> char '%')
-          <|> try (char '\\' *> char '~')
-          <|> try (pure ' ' <* char '~')
-          <|> satisfy cond
-      cond c =
-          c /= '\\' && c /= '$'  && c /= '}' && c /= '{' && c /= '%'
-          && (if allowBrackets then True else c /= ']' && c /= '[')
+handleBody :: World m => Body -> m ()
+handleBody bdy =
+    case bdy of
+      BEnv (Cmd "itemize" _ _) ib -> mapM_ handleBody ib
+      BEnv (Cmd "thebibliography" _ _) ib -> handleBib ib
+      BEnv _ _ -> pure ()
+      BCmd (Cmd "textbf" cargs _) -> mapM_ handleBody (concat cargs)
+      BCmd (Cmd "emph" cargs _) -> mapM_ handleBody (concat cargs)
+      BCmd (Cmd "title" cargs _) ->
+          case cargs of
+            ((BText x : _) : _) -> setTitle x
+            _ ->
+                pure $ pureWarn ("Bad title: " <> showText bdy) ()
+      BCmd (Cmd "cite" cargs _) ->
+          forM_ cargs $ \arg ->
+          case arg of
+            (BText x : _) -> pushCite x
+            _ ->
+                pure $ pureWarn ("Bad cite reference: " <> showText bdy) ()
+      BCmd _ -> pure ()
+      BMath -> pushFormula
+      BText t -> pushText t
+      BMany more ->
+          mapM_ handleBody more

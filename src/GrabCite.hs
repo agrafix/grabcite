@@ -1,6 +1,7 @@
 module GrabCite
     ( getCitationsFromPdf, getCitationsFromPdfBs
     , getCitationsFromPlainText, getCitationsFromTextFile
+    , getCitationsFromTex
     , getCitationsFromIceCiteJson
     , getCitationsFromIceCiteBasicJson
     , Cfg(..)
@@ -14,12 +15,14 @@ import GrabCite.Pipeline
 import GrabCite.Pipeline.IceCite
 import GrabCite.Pipeline.IceCiteBasic
 import GrabCite.Pipeline.PdfToText
+import GrabCite.Pipeline.Tex
 import Util.Pdf
 
 import Control.Logger.Simple
 import Path
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import qualified Data.Traversable as T
 
@@ -68,6 +71,20 @@ getCitationsFromIceCiteBasicJson rc bs =
              Right ok -> pure (Just ok)
        T.mapM (go rc) res
 
+getCitationsFromTex ::
+    Cfg
+    -> BS.ByteString
+    -> Maybe BS.ByteString
+    -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
+getCitationsFromTex rc bs mBbl =
+    do res <-
+           case texAsInput (TexInput (T.decodeUtf8 bs) (T.decodeUtf8 <$> mBbl)) of
+             Left errMsg ->
+                 do logError (T.pack errMsg)
+                    pure Nothing
+             Right ok -> pure (Just ok)
+       T.mapM (go rc) res
+
 go :: Cfg -> Input -> IO (ExtractionResult (Maybe DblpPaper))
 go rc txt =
     do let extracted = extractCitations txt
@@ -76,6 +93,8 @@ go rc txt =
            getPaperId (c_refCache rc) $
            case txt of
              InStructured (StructuredIn { si_title = Just title }) ->
+                 Left title
+             InCited (CitedIn { ci_title = title }) ->
                  Left title
              _ -> Right (er_nodes extracted)
        pure $ extracted { er_nodes = nodes', er_paperId = paperId }

@@ -1,0 +1,84 @@
+\begin{thebibliography}{10}
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\urlprefix}{URL }
+
+\bibitem{DBLP:conf/pldi/0001HM16}
+Adams, M.D., Hollenbeck, C., Might, M.: On the complexity and performance of
+  parsing with derivatives. In: {PLDI}. pp. 224--236. {ACM} (2016)
+
+\bibitem{AhoLamSetiUllman2007}
+{Alfred V. Aho}, {Monica S. Lam}, {Ravi Sethi}, {Jeffrey D. Ullman}: Compilers.
+  Principles, Techniques, and Tools. Addison-Wesley (2007)
+
+\bibitem{AntimirovIneq}
+Antimirov, V.M.: Rewriting regular inequalities. In: Proc.\ of FCT'95. LNCS,
+  vol. 965, pp. 116--125. Springer (1995)
+
+\bibitem{Antimirov96Partial}
+Antimirov, V.M.: Partial derivatives of regular expressions and finite
+  automaton constructions. Theoretical Computer Science  155(2),  291--319
+  (1996)
+
+\bibitem{321249}
+Brzozowski, J.A.: Derivatives of regular expressions. J. ACM  11(4),  481--494
+  (1964)
+
+\bibitem{CaronChamparnaudMignot2011}
+Caron, P., Champarnaud, J.M., Mignot, L.: Partial derivatives of an extended
+  regular expression. In: LATA. LNCS, vol. 6638, pp. 179--191. Springer (2011)
+
+\bibitem{DBLP:conf/wia/CaronCM12}
+Caron, P., Champarnaud, J., Mignot, L.: Multi-tilde-bar derivatives. In:
+  {CIAA}. LNCS, vol. 7381, pp. 321--328. Springer (2012)
+
+\bibitem{DBLP:journals/ita/CaronCM14}
+Caron, P., Champarnaud, J., Mignot, L.: A general framework for the derivation
+  of regular expressions. {RAIRO} - Theor. Inf. and Applic.  48(3),  281--305
+  (2014)
+
+\bibitem{DBLP:conf/lata/ChamparnaudJM12}
+Champarnaud, J., Jeanne, H., Mignot, L.: Approximate regular expressions and
+  their derivatives. In: {LATA}. LNCS, vol. 7183, pp. 179--191. Springer (2012)
+
+\bibitem{Grabmayer:2005:UPC:2156157.2156171}
+Grabmayer, C.: Using proofs by coinduction to find "traditional" proofs. In:
+  Proc.\ of CALCO'05. pp. 175--193. Springer (2005)
+
+\bibitem{DBLP:conf/csl/Leiss91}
+Lei{\ss}, H.: Towards {Kleene} algebra with recursion. In: Proc. \ of CSL'91.
+  LNCS, vol. 626, pp. 242--256. Springer (1992)
+
+\bibitem{DBLP:journals/tcs/LombardyS05}
+Lombardy, S., Sakarovitch, J.: Derivatives of rational expressions with
+  multiplicity. Theor. Comput. Sci.  332(1-3),  141--177 (2005)
+
+\bibitem{DBLP:conf/icfp/MightDS11}
+Might, M., Darais, D., Spiewak, D.: Parsing with derivatives: a functional
+  pearl. In: Proc.\ of ICFP'11. pp. 189--195. ACM (2011)
+
+\bibitem{re-derivs}
+Owens, S., Reppy, J., Turon, A.: Regular-expression derivatives reexamined.
+  Journal of Functional Programming  19(2),  173--190 (2009)
+
+\bibitem{DBLP:conf/rta/RouV03}
+Rosu, G., Viswanathan, M.: Testing extended regular language membership
+  incrementally by rewriting. In: Proc.\ of RTA'03. LNCS, vol. 2706, pp.
+  499--514. Springer (2003)
+
+\bibitem{DBLP:conf/lata/SulzmannT15}
+Sulzmann, M., Thiemann, P.: Derivatives for regular shuffle expressions. In:
+  LATA'15. LCNS, vol. 8977, pp. 275--286. Springer, Nice, France (Mar 2015)
+
+\bibitem{DBLP:conf/wia/Thiemann16}
+Thiemann, P.: Derivatives for enhanced regular expressions. In: {CIAA}. Lecture
+  Notes in Computer Science, vol. 9705, pp. 285--297. Springer (2016)
+
+\bibitem{DBLP:conf/wia/Watson96}
+Watson, B.W.: {FIRE} lite: {FAs} and {REs} in {C++}. In: Workshop on
+  Implementing Automata. LNCS, vol. 1260, pp. 167--188. Springer (1996)
+
+\bibitem{DBLP:conf/calco/WinterBR11}
+Winter, J., Bonsangue, M.M., Rutten, J.J.M.M.: Context-free languages,
+  coalgebraically. In: {CALCO}. LNCS, vol. 6859, pp. 359--376. Springer (2011)
+
+\end{thebibliography}

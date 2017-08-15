@@ -1,0 +1,13 @@
+my-dblp: null # todo !
+dblp-refs:
+  - http://dblp.org/rec/conf/lata/CaronCM11
+  - http://dblp.org/rec/conf/lata/SulzmannT15
+  - http://dblp.org/rec/conf/wia/Thiemann16
+  - http://dblp.org/rec/journals/corr/WinterBR13
+  - http://dblp.org/rec/journals/dmtcs/ChamparnaudJM13
+  - http://dblp.org/rec/journals/ita/CaronCM14
+  - http://dblp.org/rec/journals/jacm/Brzozowski64
+  - http://dblp.org/rec/journals/jalc/CaronCM11
+  - http://dblp.org/rec/journals/jfp/OwensRT09
+  - http://dblp.org/rec/journals/tcs/Antimirov96
+  - http://dblp.org/rec/journals/tcs/LombardyS05

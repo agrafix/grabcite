@@ -49,6 +49,7 @@ data Config w
     , c_textMode :: w ::: Bool <?> "Is the directory already holding text files?"
     , c_iceCiteMode :: w ::: Bool <?> "Is the directory holding ice-cite files?"
     , c_iceCiteBasicMode :: w ::: Bool <?> "Like ice-cite, but ignore most roles."
+    , c_texMode :: w ::: Bool <?> "Input directory is holding tex/bib files."
     , c_outDir :: w ::: FilePath <?> "Directory to write the output to"
     , c_jobs :: w ::: Int <?> "Number of concurrent tasks to run"
     , c_context :: w ::: Int <?> "Number of words before and after to consider as context (context mode)"
@@ -72,6 +73,7 @@ data InMode
     | InPdf
     | InIceCite
     | InIceCiteBasic
+    | InTex
 
 main :: IO ()
 main =
@@ -84,12 +86,13 @@ main =
        outDir <- handleDir (c_outDir cfg)
        createDirIfMissing True outDir
        mode <-
-           case (c_textMode cfg, c_iceCiteMode cfg, c_iceCiteBasicMode cfg) of
-             (False, False, False) -> pure InPdf
-             (True, False, False) -> pure InText
-             (False, True, False) -> pure InIceCite
-             (False, False, True) -> pure InIceCiteBasic
-             _ -> fail "Can not use textMode and iceCite, iceCiteBasic mode!"
+           case (c_textMode cfg, c_iceCiteMode cfg, c_iceCiteBasicMode cfg, c_texMode cfg) of
+             (False, False, False, False) -> pure InPdf
+             (True, False, False, False) -> pure InText
+             (False, True, False, False) -> pure InIceCite
+             (False, False, True, False) -> pure InIceCiteBasic
+             (False, False, False, True) -> pure InTex
+             _ -> fail "Can not use tex, textMode and iceCite, iceCiteBasic mode!"
        let descender =
                if c_recursive cfg
                then Just (\_ _ __ -> pure $ WalkExclude [])
@@ -104,6 +107,7 @@ main =
                                     InPdf -> ".pdf"
                                     InIceCite -> ".json"
                                     InIceCiteBasic -> ".json"
+                                    InTex -> ".tex"
                           in \f -> fileExtension f == ext
                   pure pdfFiles
        (out :: Seq.Seq (Path Abs File)) <-
@@ -279,6 +283,15 @@ handlePdf mode rc ctxWords fp =
              InIceCiteBasic ->
                  BS.readFile (toFilePath fp)
                  >>= getCitationsFromIceCiteBasicJson rc
+             InTex ->
+                 do bblFile <- setFileExtension "bbl" fp
+                    x <- BS.readFile (toFilePath fp)
+                    hasBbl <- doesFileExist bblFile
+                    y <-
+                        if hasBbl
+                        then Just <$> BS.readFile (toFilePath bblFile)
+                        else pure Nothing
+                    getCitationsFromTex rc x y
        case cits of
          Nothing ->
              do logError ("Failed to get citations from " <> showText fp)

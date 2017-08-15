@@ -30,6 +30,7 @@ library
                      , GrabCite.Pipeline.Tex
                      , GrabCite.IceCite.Types
                      , Util.Regex
+                     , Util.Tex
   other-modules:       Util.Pdf
                      , Util.Text
   build-depends:       base >= 4.7 && < 5,

@@ -108,19 +108,21 @@ lookupOrWrite rc q getVal =
                pure v
         cacheV = unRefCache rc
 
-getPaperId :: RefCache -> Either T.Text [ContentNode t] -> IO (Maybe DblpPaper)
+getPaperId :: Show t => RefCache -> Either T.Text [ContentNode t] -> IO (Maybe DblpPaper)
 getPaperId refCache ci =
     newManager defaultManagerSettings >>= \mgr ->
     case ci of
       Left pureText ->
-          runLoop (0 :: Int) mgr $
-                (filter (\t -> T.length t > 2) . map T.strip . T.words) pureText
+          do logInfo ("Finding paper id of " <> showText pureText)
+             runLoop (0 :: Int) mgr $
+                 (filter (\t -> T.length t > 2) . map T.strip . T.words) pureText
       Right cNodes ->
-          case map (isTNode T.strip) $ takeWhile (isTNode $ not . T.null) cNodes of
-            [] -> pure Nothing
-            textChunks ->
-                runLoop (0 :: Int) mgr $
-                concatMap (filter (\t -> T.length t > 2) . map T.strip . T.words) textChunks
+          do logInfo ("Finding paper id of " <> showText (take 5 cNodes) <> "..")
+             case map (isTNode T.strip) $ takeWhile (isTNode $ not . T.null) cNodes of
+               [] -> pure Nothing
+               textChunks ->
+                   runLoop (0 :: Int) mgr $
+                   concatMap (filter (\t -> T.length t > 2) . map T.strip . T.words) textChunks
     where
       runLoop !steps mgr wrds =
           if length wrds < 5
