@@ -26,6 +26,7 @@ library
                      , GrabCite.Pipeline
                      , GrabCite.Pipeline.PdfToText
                      , GrabCite.Pipeline.IceCite
+                     , GrabCite.Pipeline.IceCiteBasic
                      , GrabCite.IceCite.Types
                      , Util.Regex
   other-modules:       Util.Pdf
