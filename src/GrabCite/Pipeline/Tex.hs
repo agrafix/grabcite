@@ -228,6 +228,8 @@ text allowBrackets =
           <|> try (char '\\' *> char '\t')
           <|> try (char '\\' *> char '"')
           <|> try (char '\\' *> char '%')
+          <|> try (char '\\' *> char '~')
+          <|> try (pure ' ' <* char '~')
           <|> satisfy cond
       cond c =
           c /= '\\' && c /= '$'  && c /= '}' && c /= '{' && c /= '%'
