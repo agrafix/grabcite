@@ -27,6 +27,7 @@ library
                      , GrabCite.Pipeline.PdfToText
                      , GrabCite.Pipeline.IceCite
                      , GrabCite.Pipeline.IceCiteBasic
+                     , GrabCite.Pipeline.Tex
                      , GrabCite.IceCite.Types
                      , Util.Regex
   other-modules:       Util.Pdf
@@ -55,7 +56,8 @@ library
                        superrecord,
                        vector,
                        simple-logger,
-                       edit-distance
+                       edit-distance,
+                       megaparsec
   default-language:    Haskell2010
   ghc-options:         -Wall
 

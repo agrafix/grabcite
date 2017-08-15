@@ -1,4 +1,4 @@
-resolver: lts-8.13
+resolver: lts-9.0
 packages:
   - '.'
   - location:
@@ -7,3 +7,5 @@ packages:
     extra-dep: true
 extra-deps:
   - superrecord-0.3.0.0
+  - megaparsec-6.1.1
+  - parser-combinators-0.2.0
