@@ -1,6 +1,7 @@
 resolver: lts-8.13
 packages:
   - '.'
+  - ../HaTeX
   - location:
       git: https://github.com/agrafix/simple-logger
       commit: 9b359de3073bab6d3e0097cf87929a00d55b54e6
