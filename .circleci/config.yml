@@ -3,9 +3,15 @@ jobs:
   build:
     working_directory: ~/grabcite
     docker:
-      - image: fpco/stack-build:lts-8.13
+      - image: ubuntu:17.10
     steps:
       - checkout
+      - run:
+          name: install apt-get dependencies
+          command: 'apt-get install update && apt-get install -y curl poppler-utils'
+      - run:
+          name: install stack
+          command: 'curl -sSL https://get.haskellstack.org/ | sh'
       - restore_cache:
           key: stack-cache
       - run:
@@ -19,9 +25,6 @@ jobs:
           paths:
             - ~/.stack
             - ~/grabcite/.stack-work
-      - run:
-          name: install pdftotext
-          command: 'apt-get install update && apt-get install -y poppler-utils'
       - run:
           name: stack build
           command: 'stack build --fast --pedantic'
