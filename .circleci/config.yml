@@ -3,15 +3,12 @@ jobs:
   build:
     working_directory: ~/grabcite
     docker:
-      - image: ubuntu:17.10
+      - image: fpco/stack-build:lts-9.0
     steps:
       - checkout
       - run:
           name: install apt-get dependencies
-          command: 'apt-get update && apt-get install -y curl poppler-utils pkg-config'
-      - run:
-          name: install stack
-          command: 'curl -sSL https://get.haskellstack.org/ | sh'
+          command: 'apt-get update && apt-get install -y curl poppler-utils'
       - restore_cache:
           key: stack-cache
       - run:
