@@ -22,3 +22,9 @@ cabal.project.local
 out/
 data/
 grabcite-datagen
+auto/
+foo.txt
+foo2.txt
+foo_small.txt
+sync.sh
+NOTES
