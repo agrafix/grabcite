@@ -1,13 +1,20 @@
 my-dblp: http://dblp.org/rec/conf/fossacs/Thiemann17
 dblp-refs:
-  - http://dblp.org/rec/conf/lata/CaronCM11
+  # checked and correct
+  - http://dblp.org/rec/conf/calco/Grabmayer05
+  - http://dblp.org/rec/conf/fct/Antimirov95
+  - http://dblp.org/rec/conf/icfp/MightDS11
   - http://dblp.org/rec/conf/lata/SulzmannT15
+  - http://dblp.org/rec/conf/pldi/0001HM16
+  - http://dblp.org/rec/conf/rta/RouV03
   - http://dblp.org/rec/conf/wia/Thiemann16
-  - http://dblp.org/rec/journals/corr/WinterBR13
-  - http://dblp.org/rec/journals/dmtcs/ChamparnaudJM13
-  - http://dblp.org/rec/journals/ita/CaronCM14
   - http://dblp.org/rec/journals/jacm/Brzozowski64
-  - http://dblp.org/rec/journals/jalc/CaronCM11
   - http://dblp.org/rec/journals/jfp/OwensRT09
   - http://dblp.org/rec/journals/tcs/Antimirov96
   - http://dblp.org/rec/journals/tcs/LombardyS05
+  - http://dblp.org/rec/journals/ita/CaronCM14
+  - http://dblp.org/rec/conf/calco/WinterBR11
+  - http://dblp.org/rec/conf/lata/ChamparnaudJM12
+  - http://dblp.org/rec/journals/ita/CaronCM14
+  - http://dblp.org/rec/journals/acta/CaronCM12
+  - http://dblp.org/rec/conf/lata/CaronCM11

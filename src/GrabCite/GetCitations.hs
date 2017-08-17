@@ -18,6 +18,7 @@ module GrabCite.GetCitations
 where
 
 import GrabCite.Pipeline
+import Util.Text
 import qualified Data.Set as S
 
 import Control.Logger.Simple
@@ -264,20 +265,6 @@ isCitation txt =
               (x:_) -> x /= txt
               _ -> True
     in basic && notOnlyAYear
-
-getNumberList :: T.Text -> [T.Text]
-getNumberList txt =
-    let splitted = map T.strip $ T.splitOn "," txt
-        cond = all (T.all isDigit) splitted && not (null splitted)
-    in if cond then splitted else []
-
-
-extractYears :: T.Text -> [T.Text]
-extractYears txt =
-    filter (\grp -> T.all isDigit grp
-               && T.length grp  == 4
-               && ("20" `T.isPrefixOf` grp || "19" `T.isPrefixOf` grp)) $
-    T.groupBy (\d1 d2 -> isDigit d1 && isDigit d2) txt
 
 collectMarkerCands :: T.Text -> [CitMarkerCand]
 collectMarkerCands txt =

@@ -187,10 +187,15 @@ main =
                                CnText _ -> Nothing
                                CnRef r ->
                                    join $ db_url <$> cr_tag r
+                         requiredRefs =
+                             S.fromList (pi_dblpRefs info)
+                         actualRefs = S.fromList dblpRefs
                      it "is parsed" $
                          res `shouldNotBe` Nothing
-                     it "has the correct dblp references" $
-                         S.fromList dblpRefs `shouldBe` S.fromList (pi_dblpRefs info)
+                     it "has no missing dblp references" $
+                         requiredRefs `S.difference` actualRefs `shouldBe` S.empty
+                     it "does not have extra (wrong) dblp references" $
+                         actualRefs `S.difference` requiredRefs `shouldBe` S.empty
                      it "has correct own dblp" $
                          join (fmap db_url (join (fmap er_paperId res)))
                              `shouldBe` pi_paperId info

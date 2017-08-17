@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Util.Text where
 
+import Data.Char
 import qualified Data.Text as T
 
 textRemovePunc :: T.Text -> T.Text
@@ -39,3 +40,17 @@ textRemoveLig =
     T.replace "\64258" "fl" .
     T.replace "\64257" "fi" .
     T.replace "\64256" "ff"
+
+getNumberList :: T.Text -> [T.Text]
+getNumberList txt =
+    let splitted = map T.strip $ T.splitOn "," txt
+        cond = all (T.all isDigit) splitted && not (null splitted)
+    in if cond then splitted else []
+
+
+extractYears :: T.Text -> [T.Text]
+extractYears txt =
+    filter (\grp -> T.all isDigit grp
+               && T.length grp  == 4
+               && ("20" `T.isPrefixOf` grp || "19" `T.isPrefixOf` grp)) $
+    T.groupBy (\d1 d2 -> isDigit d1 && isDigit d2) txt

@@ -126,7 +126,7 @@ handleBody bdy =
       BCmd (Cmd "cite" cargs _) ->
           forM_ cargs $ \arg ->
           case arg of
-            (BText x : _) -> pushCite x
+            (BText x : _) -> mapM_ pushCite (filter (not . T.null) $ T.splitOn "," x)
             _ ->
                 pure $ pureWarn ("Bad cite reference: " <> showText bdy) ()
       BCmd _ -> pure ()

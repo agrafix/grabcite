@@ -127,7 +127,7 @@ getPaperId refCache ci =
       runLoop !steps mgr wrds =
           if length wrds < 5
           then pure Nothing
-          else do let q = makeSearchQuery $ T.unwords wrds
+          else do let q = snd $ makeSearchQuery False $ T.unwords wrds
                   if T.length q < 5
                      then pure Nothing
                      else do res <- runQuery refCache mgr q
@@ -147,15 +147,23 @@ getPaperId refCache ci =
             CnText t -> f t
             _ -> f ""
 
-makeSearchQuery :: T.Text -> T.Text
-makeSearchQuery txt =
+makeSearchQuery :: Bool -> T.Text -> (Bool, T.Text)
+makeSearchQuery useYears txt =
     let strWords =
             filter (\t -> T.length t > 2 && T.all isAlpha t) $
             map T.strip $
             T.words (textRemovePunc txt)
         searchQuery = T.unwords strWords
         leftOver = T.drop 40 searchQuery
-    in T.take 40 searchQuery <> T.takeWhile isAlpha leftOver
+        years =
+            if useYears
+            then filter (\t -> T.length t == 4) $ extractYears txt
+            else []
+        hadYear = not (null years)
+    in ( hadYear
+       , T.strip $
+         T.take 40 searchQuery <> T.takeWhile isAlpha leftOver <> " " <> T.intercalate " " years
+       )
 
 runQuery :: RefCache -> Manager -> T.Text -> IO (Either String DblpResult)
 runQuery refCache mgr q =
@@ -183,29 +191,36 @@ annotateReferences refCache contentNodes =
        mapM (annotateNode mgr) contentNodes
     where
         annotateNode mgr cn =
+            do (hadYear, r) <- annotateNode' True mgr cn
+               case r of
+                 CnRef (ContentRef { cr_tag = Nothing }) | hadYear ->
+                     do logInfo "No tag found, but queried with year. Now trying w/o."
+                        snd <$> annotateNode' False mgr cn
+                 _ -> pure r
+        annotateNode' useYears mgr cn =
             case cn of
-              CnText t -> pure (CnText t)
+              CnText t -> pure (False, CnText t)
               CnRef r ->
-                  do let q = makeSearchQuery (cr_info r)
+                  do let (hadYear, q) = makeSearchQuery useYears (cr_info r)
                      if T.length q < 5
                         then do logWarn $
                                     "Search string to short: " <> showText q
-                                pure (CnRef $ r { cr_tag = Nothing })
+                                pure (hadYear, CnRef $ r { cr_tag = Nothing })
                         else do logInfo ("Will annotate: " <> showText (cr_info r)
                                             <> " Query: " <> showText q)
                                 res <- runQuery refCache mgr q
                                 case res of
                                   Left errMsg ->
                                       do logError $ T.pack errMsg
-                                         pure (CnRef $ r { cr_tag = Nothing })
+                                         pure (hadYear, CnRef $ r { cr_tag = Nothing })
                                   Right ok ->
                                       case dr_papers ok of
                                         (paper : _) ->
                                             do logInfo $
                                                    "Paper is refed by: "
                                                    <> showText (db_url paper)
-                                               pure (CnRef $ r { cr_tag = Just paper })
+                                               pure (hadYear, CnRef $ r { cr_tag = Just paper })
                                         _ ->
                                             do logWarn $
                                                    "No search results for " <> showText q
-                                               pure (CnRef $ r { cr_tag = Nothing })
+                                               pure (hadYear, CnRef $ r { cr_tag = Nothing })
