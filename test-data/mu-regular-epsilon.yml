@@ -1,4 +1,4 @@
-my-dblp: null # todo !
+my-dblp: http://dblp.org/rec/conf/fossacs/Thiemann17
 dblp-refs:
   - http://dblp.org/rec/conf/lata/CaronCM11
   - http://dblp.org/rec/conf/lata/SulzmannT15

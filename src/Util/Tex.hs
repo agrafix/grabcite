@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 -- |
 -- Module: Util.Tex
 --
@@ -105,7 +106,10 @@ bracket :: Parser a -> Parser a
 bracket = between (symbol "[") (symbol "]")
 
 docP :: Parser [Body]
-docP = docExtractP "document"
+docP =
+    do x <- some bodyP
+       eof
+       pure x
 
 bibP :: Parser [Body]
 bibP = docExtractP "thebibliography"
@@ -136,7 +140,7 @@ bodyP =
     , BText <$> try (text True)
     , BCmd <$> try command
     , BMany <$> ([] <$ try comment)
-    , BMany <$> curly (some bodyP)
+    , BMany <$> curly (many bodyP)
     ]
 
 argBodyP :: Bool -> Parser Body
@@ -146,7 +150,7 @@ argBodyP allowBrackets =
     , BMath <$ try math
     , BText <$> try (text allowBrackets)
     , BMany <$> ([] <$ try comment)
-    , BMany <$> curly (some $ argBodyP True)
+    , BMany <$> curly (many $ argBodyP True)
     ]
 
 comment :: Parser ()
@@ -215,16 +219,27 @@ text :: Bool -> Parser T.Text
 text allowBrackets =
     T.pack <$> some literalVal
     where
+      umlauts x y =
+          try (char '\\' *> char '"' *> char x *> pure y)
+      excapedChr x =
+          try (char '\\' *> char x *> pure x)
       literalVal =
-          try (char '\\' *> char '\\')
-          <|> try (char '\\' *> char '$')
-          <|> try (char '\\' *> char '{')
-          <|> try (char '\\' *> char '}')
-          <|> try (char '\\' *> char ' ')
-          <|> try (char '\\' *> char '\t')
-          <|> try (char '\\' *> char '"')
-          <|> try (char '\\' *> char '%')
-          <|> try (char '\\' *> char '~')
+          umlauts 'a' 'ä'
+          <|> umlauts 'u' 'ü'
+          <|> umlauts 'o' 'ö'
+          <|> umlauts 'A' 'Ä'
+          <|> umlauts 'U' 'Ü'
+          <|> umlauts 'O' 'Ö'
+          <|> excapedChr '\\'
+          <|> excapedChr '$'
+          <|> excapedChr '{'
+          <|> excapedChr '}'
+          <|> excapedChr ' '
+          <|> excapedChr ','
+          <|> excapedChr '\t'
+          <|> excapedChr '"'
+          <|> excapedChr '%'
+          <|> excapedChr '~'
           <|> try (pure ' ' <* char '~')
           <|> satisfy cond
       cond c =

@@ -113,6 +113,7 @@ handleBody :: World m => Body -> m ()
 handleBody bdy =
     case bdy of
       BEnv (Cmd "itemize" _ _) ib -> mapM_ handleBody ib
+      BEnv (Cmd "document" _ _) ib -> mapM_ handleBody ib
       BEnv (Cmd "thebibliography" _ _) ib -> handleBib ib
       BEnv _ _ -> pure ()
       BCmd (Cmd "textbf" cargs _) -> mapM_ handleBody (concat cargs)
