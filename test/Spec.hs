@@ -8,6 +8,7 @@ import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.IceCite.Types
 import GrabCite.Pipeline
+import Util.Sentence
 import Util.Tex
 
 import Control.Logger.Simple
@@ -119,6 +120,15 @@ sampleInput =
     , si_referenceCandidates = V.fromList goodRefLines
     }
 
+sampleSplitText :: [T.Text]
+sampleSplitText =
+    [ "There have been a number of approaches to develop general frameworks for derivation: Caron and coworkers <DBLP:http://dblp.org/rec/journals/ita/CaronCM14> abstract over the support for\ncreating derivations, Thiemann  <DBLP:http://dblp.org/rec/conf/wia/Thiemann16> develops criteria for derivable language operators."
+    , "Recently, there has been practical interest in the study of\nderivatives and partial derivatives."
+    , "Owens and coworkers  <DBLP:http://dblp.org/rec/journals/jfp/OwensRT09> report a functional implementation with some extensions (e.g., character classes) to handle large\ncharacter sets, which is partially rediscovering work on the FIRE\nlibrary  <GC:fasand.firelite.resin.watson.workshop> ."
+    , "Might and coworkers\n <DBLP:http://dblp.org/rec/conf/icfp/MightDS11>  <DBLP:http://dblp.org/rec/conf/pldi/0001HM16> push beyond\nregular languages by implementing parsing for\ncontext-free languages using derivatives and demonstrate its\nfeasibility in practice."
+    , "Winter and coworkers  <DBLP:http://dblp.org/rec/conf/calco/WinterBR11> study\ncontext-free languages in a coalgebraic setting."
+    ]
+
 main :: IO ()
 main =
     withGlobalLogging (LogConfig Nothing True) $
@@ -127,6 +137,14 @@ main =
     do testCases <- runIO computeTestCases
        jsonFiles <- runIO computeJsonFiles
        texFiles <- runIO computeTexFiles
+       describe "sentence splitting" $
+           do let splitTest intercal =
+                      it ("works for a medium sized example (intercal. by: " <> show intercal <> ")") $
+                      do let textBlob = T.intercalate intercal sampleSplitText
+                         sentenceSplit textBlob `shouldBe` (map (T.unwords . T.words . T.replace "\n" " ") sampleSplitText)
+              splitTest " "
+              splitTest "\n \n"
+              splitTest " DUmbuasdu. "
        describe "get citations" $
            do describe "extract ref names + years" $
                   it "works" $

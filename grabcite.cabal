@@ -31,6 +31,7 @@ library
                      , GrabCite.IceCite.Types
                      , Util.Regex
                      , Util.Tex
+                     , Util.Sentence
   other-modules:       Util.Pdf
                      , Util.Text
   build-depends:       base >= 4.7 && < 5,

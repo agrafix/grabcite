@@ -16,7 +16,7 @@ import GrabCite.Context
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.GlobalId
-import Util.Regex
+import Util.Sentence
 import qualified Data.ByteString as BS
 
 import Control.Concurrent.Async
@@ -24,13 +24,11 @@ import Control.Exception
 import Control.Logger.Simple
 import Control.Monad
 import Data.Aeson
-import Data.Char
 import Data.List
 import Data.Maybe
 import Options.Generic
 import Path
 import Path.IO
-import Text.Regex.PCRE.Heavy
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HM
@@ -120,88 +118,8 @@ main =
            workLoop mode (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state
            todoPdfs (Cfg rc)
 
-sSplit :: (Char -> (T.Text, T.Text) -> Bool) -> T.Text -> [T.Text]
-sSplit decisionFun txtIn =
-    pureDebug ("Text blob: " <> showText txtIn) $
-    filter (not . T.null) $ map (TL.toStrict . TL.strip) $ reverse $ go [] mempty txtIn
-    where
-      go output current state =
-          case T.uncons state of
-            Nothing -> (TLB.toLazyText current : output)
-            Just (c, more)
-                | c == '.' || c == '?' || c == '!' ->
-                      let curr = TLB.toLazyText current
-                          currL = TL.length curr
-                          toDrop = currL - 20
-                          alreadyRead = TL.toStrict $ TL.drop (min 0 toDrop) curr
-                          afterDot = T.take 20 more
-                          shouldSplit = decisionFun c (alreadyRead, afterDot)
-                      in if shouldSplit
-                            then go (curr <> TL.singleton c : output) mempty more
-                            else go output (current <> TLB.singleton c) more
-                | otherwise -> go output (current <> TLB.singleton c) more
-
 sentenceSplitter :: T.Text -> T.Text
-sentenceSplitter txtIn =
-    T.intercalate "\n============\n" $ mapMaybe cleanSentence $
-    filter isValidSentence $
-    let origSplits = sSplit sentenceDecide txtIn
-    in pureDebug ("Original splits: " <> showText origSplits) origSplits
-
-cleanSentence :: T.Text -> Maybe T.Text
-cleanSentence tx =
-    let tLines = filter goodLine . T.lines $ tx
-        lineCount = length tLines
-    in if lineCount == 0 || lineCount > 10
-       then pureDebug ("Bad sentence: " <> showText tx) Nothing
-       else let s = gsub multiSpace (T.singleton ' ') $ T.intercalate " " tLines
-            in if badSentence s then Nothing else (Just s)
-    where
-      badSentence t =
-          let wrds = T.words t
-              punct = T.length (T.filter (\c -> isPunctuation c && c /= '/' && c /= '<') t)
-              num = T.length (T.filter isNumber t)
-              tl = T.length t
-              pnr :: Double
-              pnr =
-                  (fromIntegral punct + fromIntegral num) / fromIntegral tl
-              pwr :: Double
-              pwr = fromIntegral punct / fromIntegral (length wrds)
-          in tl < 10 -- less than 10 letters
-               || length wrds < 3 -- less than 3 words
-               || length (filter goodWord wrds) < 2 -- less than 2 proper words
-               || pnr > 0.3 -- more than 30% numbers / punctuation
-               || pwr > 0.6 -- more than 0.6 punctuation characters per word
-      goodWord w =
-          T.length w >= 2 && T.all isAlpha w
-      goodLine x =
-          not (T.null x) && not (x =~ sectionTitleLine)
-
-isValidSentence :: T.Text -> Bool
-isValidSentence txt
-    | T.any (\c -> c =='\f' || c == '^' || c == '@') txt = False
-    | otherwise = True
-
-sentenceDecide :: Char -> (T.Text, T.Text) -> Bool
-sentenceDecide c (before, after)
-    | c == '!' = True
-    | c == '?' = True
-    | localDots beforeRev || localDots after = False
-    | noSpace beforeRev && noSpace after = False
-    | noSpace beforeRev && beginsCapital after = True
-    | isAbbrev beforeRev = False
-    | otherwise = True
-    where
-      beginsCapital =
-          T.all isUpper . T.take 1 . T.strip
-      noSpace =
-          T.all (not . isSpace) . T.take 1
-      isAbbrev x =
-          let l = T.takeWhile (not . isSpace) $ T.strip x
-          in T.length l <= 3 || (T.all isUpper l && T.length l < 5)
-      localDots =
-          T.any (\cx -> cx =='.' || cx == ',') . T.take 3
-      beforeRev = T.reverse before
+sentenceSplitter = T.intercalate "\n============\n" . sentenceSplit
 
 workLoop :: InMode -> Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> Cfg -> IO ()
 workLoop mode ctxWrite ctxWords jobs outDir st todoQueue rc =
@@ -368,11 +286,3 @@ writeState outDir st =
     do let fp = toFilePath (mkStateFile outDir)
        logDebug $ "Writing current state to " <> showText fp
        BSL.writeFile fp (encode st)
-
-sectionTitleLine :: Regex
-sectionTitleLine =
-    [reM|^([0-9]+(\.[0-9]+(\.[0-9]+(\.[0-9]+)?)?)?\s+)?[A-Z &\-,\.]+$|]
-
-multiSpace :: Regex
-multiSpace =
-    [re|\s\s+|]
