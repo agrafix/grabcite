@@ -122,6 +122,7 @@ main =
 
 sSplit :: (Char -> (T.Text, T.Text) -> Bool) -> T.Text -> [T.Text]
 sSplit decisionFun txtIn =
+    pureDebug ("Text blob: " <> showText txtIn) $
     filter (not . T.null) $ map (TL.toStrict . TL.strip) $ reverse $ go [] mempty txtIn
     where
       go output current state =
@@ -143,20 +144,22 @@ sSplit decisionFun txtIn =
 sentenceSplitter :: T.Text -> T.Text
 sentenceSplitter txtIn =
     T.intercalate "\n============\n" $ mapMaybe cleanSentence $
-    filter isValidSentence $ sSplit sentenceDecide txtIn
+    filter isValidSentence $
+    let origSplits = sSplit sentenceDecide txtIn
+    in pureDebug ("Original splits: " <> showText origSplits) origSplits
 
 cleanSentence :: T.Text -> Maybe T.Text
 cleanSentence tx =
     let tLines = filter goodLine . T.lines $ tx
         lineCount = length tLines
-    in if lineCount == 0 || lineCount > 4
-       then Nothing
+    in if lineCount == 0 || lineCount > 10
+       then pureDebug ("Bad sentence: " <> showText tx) Nothing
        else let s = gsub multiSpace (T.singleton ' ') $ T.intercalate " " tLines
             in if badSentence s then Nothing else (Just s)
     where
       badSentence t =
           let wrds = T.words t
-              punct = T.length (T.filter isPunctuation t)
+              punct = T.length (T.filter (\c -> isPunctuation c && c /= '/' && c /= '<') t)
               num = T.length (T.filter isNumber t)
               tl = T.length t
               pnr :: Double
