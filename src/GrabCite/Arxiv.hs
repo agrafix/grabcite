@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -20,7 +21,6 @@ import Control.Monad.Trans.Resource
 import Data.Bifunctor
 import Data.Conduit
 import Data.List (find)
-import Data.String
 import Data.XML.Types
 import Path
 import Path.IO
@@ -41,11 +41,17 @@ data ArxivCfg a
     }
 
 arxivSpecLoadingPipeline ::
-    (MonadResource m ,MonadMask (MaybeT m), MonadIO m) => ArxivCfg a -> Source m ArxivSource
+    forall a m. (MonadResource m ,MonadMask m, MonadIO m) => ArxivCfg a -> Source m ArxivSource
 arxivSpecLoadingPipeline cc =
     parseMetaXml (ac_metaXml cc)
     =$= CL.filter (\mh -> mh_setSpec mh == ac_desiredSpec cc)
-    =$= CL.mapMaybeM (handleSourceForMeta (ac_srcFileDir cc))
+    =$= CL.mapMaybeM go
+    where
+      go :: MetaHeader -> m (Maybe ArxivSource)
+      go x =
+          (handleSourceForMeta (ac_srcFileDir cc) x) `catchAll` \errMsg ->
+          do logError ("Failed to handle " <> mh_ident x <> ": " <> showText errMsg)
+             pure Nothing
 
 arxivSpecCopySink :: MonadIO m => Path a Dir -> Sink ArxivSource m ()
 arxivSpecCopySink targetDir =
@@ -114,7 +120,7 @@ parseRecord =
        pure $ join r
 
 handleSourceForMeta ::
-    (MonadMask (MaybeT m), MonadIO m) => Path a Dir -> MetaHeader -> m (Maybe ArxivSource)
+    (MonadMask m, MonadIO m) => Path a Dir -> MetaHeader -> m (Maybe ArxivSource)
 handleSourceForMeta baseDir mh =
     runMaybeT $
     do (strippedIdent, basePath) <- MaybeT (pure $ pathFromIdent $ mh_ident mh)
@@ -130,10 +136,13 @@ handleSourceForMeta baseDir mh =
                            fail ("File not found: " <> show path)
         gzHandler si fp =
             extHandler "gz" fp $ \fullPath ->
-            withSystemTempDir "arxivUnpacker" $ \tempDir ->
+            lift $ withSystemTempDir "arxivUnpacker" $ \tempDir ->
             do let tempLoc = tempDir </> filename fullPath
                copyFile fullPath tempLoc
-               exitCode <- runProcess (fromString $ "tar xvzf " <> toFilePath tempLoc)
+               let shellCmd =
+                       setWorkingDir (toFilePath tempDir) $
+                       shell $ "tar xvzf " <> toFilePath (filename tempLoc)
+               exitCode <- runProcess shellCmd
                case exitCode of
                  ExitSuccess ->
                      do (_, allFiles) <- listDirRecur tempDir

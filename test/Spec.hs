@@ -142,7 +142,18 @@ main =
        jsonFiles <- runIO computeJsonFiles
        texFiles <- runIO computeTexFiles
        describe "arxiv extractor" $
-           do it "parses the xml correctly" $
+           do it "loading pipeline works" $
+                  do let cfg =
+                             ArxivCfg
+                             { ac_metaXml = [relfile|test-xml/arxiv-all.xml|]
+                             , ac_srcFileDir = [reldir|test-gz|]
+                             , ac_desiredSpec = "cs"
+                             }
+                     outs <-
+                         runResourceT $
+                         arxivSpecLoadingPipeline cfg $$ CL.consume
+                     map as_ident outs `shouldBe` ["0704.0002", "0704.0046"]
+              it "parses the xml correctly" $
                   do outs <-
                          runResourceT $
                          parseMetaXml [relfile|test-xml/arxiv-all.xml|] $$ CL.consume
