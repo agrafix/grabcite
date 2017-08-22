@@ -125,7 +125,7 @@ handleSourceForMeta baseDir mh =
     runMaybeT $
     do (strippedIdent, basePath) <- MaybeT (pure $ pathFromIdent $ mh_ident mh)
        let fullPath = baseDir </> basePath
-       gzHandler strippedIdent fullPath
+       tarGzHandler strippedIdent fullPath
     where
         extHandler ext fp go =
             do path <- fp <.> ext
@@ -134,7 +134,32 @@ handleSourceForMeta baseDir mh =
                    then go path
                    else do logDebug ("File not found: " <> showText path)
                            fail ("File not found: " <> show path)
-        gzHandler si fp =
+        gzHandler si tempDir tempLoc =
+            do let shellCmd =
+                       setWorkingDir (toFilePath tempDir) $
+                       shell $ "gunzip " <> toFilePath (filename tempLoc)
+               exitCode <- runProcess shellCmd
+               case exitCode of
+                 ExitFailure code ->
+                     do logDebug ("Failed to unpack " <> showText tempLoc <> " with gunzip. Code="
+                                 <> showText code
+                                 )
+                        fail "Can not unpack"
+                 ExitSuccess ->
+                     do (_, allFiles) <- listDirRecur tempDir
+                        case filter (\f -> fileExtension f /= ".gz") allFiles of
+                          [] ->
+                              do logWarn ("No files found in " <> showText tempDir)
+                                 fail "No files found"
+                          (x : _) ->
+                              do tfContent <- liftIO $ BS.readFile (toFilePath x)
+                                 pure
+                                     ArxivSource
+                                     { as_ident = si
+                                     , as_tex = tfContent
+                                     , as_bbl = Nothing
+                                     }
+        tarGzHandler si fp =
             extHandler "gz" fp $ \fullPath ->
             lift $ withSystemTempDir "arxivUnpacker" $ \tempDir ->
             do let tempLoc = tempDir </> filename fullPath
@@ -163,10 +188,11 @@ handleSourceForMeta baseDir mh =
                                      , as_bbl = bblContent
                                      }
                  ExitFailure code ->
-                     do logWarn
+                     do logDebug
                             ("Failed to unpack " <> showText tempLoc
-                             <> " (orig: " <> showText fullPath <> "). Code=" <> showText code)
-                        fail "Failed to unpack"
+                             <> " as .tar.gz (orig: " <> showText fullPath <> "). Code="
+                             <> showText code)
+                        gzHandler si tempDir tempLoc
 
 
 pathFromIdent :: T.Text -> Maybe (T.Text, Path Rel File)

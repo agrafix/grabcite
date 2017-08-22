@@ -153,6 +153,7 @@ main =
                          runResourceT $
                          arxivSpecLoadingPipeline cfg $$ CL.consume
                      map as_ident outs `shouldBe` ["0704.0002", "0704.0046"]
+                     map (BS.null . as_tex) outs `shouldBe` [False, False]
               it "parses the xml correctly" $
                   do outs <-
                          runResourceT $
