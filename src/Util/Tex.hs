@@ -220,6 +220,8 @@ text :: Bool -> Parser T.Text
 text allowBrackets =
     T.pack <$> some literalVal
     where
+      accents x y =
+          try (char '\\' *> char '\'' *> char x *> pure y)
       umlauts x y =
           try (char '\\' *> char '"' *> char x *> pure y)
       escapedChrGen :: Parser Char
@@ -235,6 +237,8 @@ text allowBrackets =
           <|> umlauts 'A' 'Ä'
           <|> umlauts 'U' 'Ü'
           <|> umlauts 'O' 'Ö'
+          <|> accents 'e' 'é'
+          <|> accents 'E' 'É'
           <|> escapedChrGen
           <|> try (pure ' ' <* char '~')
           <|> satisfy cond
