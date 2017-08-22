@@ -4,6 +4,7 @@ import Test.Hspec
 
 import GrabCite
 import GrabCite.Annotate
+import GrabCite.Arxiv
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.IceCite.Types
@@ -13,7 +14,9 @@ import Util.Tex
 
 import Control.Logger.Simple
 import Control.Monad
+import Control.Monad.Trans.Resource
 import Data.Aeson
+import Data.Conduit
 import Data.Either
 import Data.List
 import Data.Maybe
@@ -21,6 +24,7 @@ import Data.Yaml
 import Path
 import Path.IO
 import qualified Data.ByteString as BS
+import qualified Data.Conduit.List as CL
 import qualified Data.Sequence as Seq
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -137,6 +141,23 @@ main =
     do testCases <- runIO computeTestCases
        jsonFiles <- runIO computeJsonFiles
        texFiles <- runIO computeTexFiles
+       describe "arxiv extractor" $
+           do it "parses the xml correctly" $
+                  do outs <-
+                         runResourceT $
+                         parseMetaXml [relfile|test-xml/arxiv-all.xml|] $$ CL.consume
+                     outs `shouldBe`
+                         [ MetaHeader
+                           { mh_ident = "oai:arXiv.org:0704.0002"
+                           , mh_datestamp = "2008-12-13"
+                           , mh_setSpec = "cs"
+                           }
+                         , MetaHeader
+                           { mh_ident = "oai:arXiv.org:0704.0046"
+                           , mh_datestamp = "2009-11-13"
+                           , mh_setSpec = "cs"
+                           }
+                         ]
        describe "sentence splitting" $
            do let splitTest intercal =
                       it ("works for a medium sized example (intercal. by: " <> show intercal <> ")") $

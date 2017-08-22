@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListRecords>
+<record>
+<header>
+ <identifier>oai:arXiv.org:0704.0002</identifier>
+ <datestamp>2008-12-13</datestamp>
+ <setSpec>cs</setSpec>
+</header>
+<metadata>
+ <oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd">
+ <dc:title>Sparsity-certifying Graph Decompositions</dc:title>
+ <dc:creator>Streinu, Ileana</dc:creator>
+ <dc:creator>Theran, Louis</dc:creator>
+ <dc:subject>Mathematics - Combinatorics</dc:subject>
+ <dc:subject>Computer Science - Computational Geometry</dc:subject>
+ <dc:subject>05C85</dc:subject>
+ <dc:subject>05C70</dc:subject>
+ <dc:subject>68R10</dc:subject>
+ <dc:subject>05B35</dc:subject>
+ <dc:description>  We describe a new algorithm, the $(k,\ell)$-pebble game with colors, and use
+it obtain a characterization of the family of $(k,\ell)$-sparse graphs and
+algorithmic solutions to a family of problems concerning tree decompositions of
+graphs. Special instances of sparse graphs appear in rigidity theory and have
+received increased attention in recent years. In particular, our colored
+pebbles generalize and strengthen the previous results of Lee and Streinu and
+give a new proof of the Tutte-Nash-Williams characterization of arboricity. We
+also present a new decomposition that certifies sparsity based on the
+$(k,\ell)$-pebble game with colors. Our work also exposes connections between
+pebble game algorithms and previous sparse graph algorithms by Gabow, Gabow and
+Westermann and Hendrickson.
+</dc:description>
+ <dc:description>Comment: To appear in Graphs and Combinatorics</dc:description>
+ <dc:date>2007-03-30</dc:date>
+ <dc:date>2008-12-13</dc:date>
+ <dc:type>text</dc:type>
+ <dc:identifier>http://arxiv.org/abs/0704.0002</dc:identifier>
+ </oai_dc:dc>
+</metadata>
+</record>
+<record>
+<header>
+ <identifier>oai:arXiv.org:0704.0046</identifier>
+ <datestamp>2009-11-13</datestamp>
+ <setSpec>cs</setSpec>
+</header>
+<metadata>
+ <oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd">
+ <dc:title>A limit relation for entropy and channel capacity per unit cost</dc:title>
+ <dc:creator>Csiszar, I.</dc:creator>
+ <dc:creator>Hiai, F.</dc:creator>
+ <dc:creator>Petz, D.</dc:creator>
+ <dc:subject>Quantum Physics</dc:subject>
+ <dc:subject>Computer Science - Information Theory</dc:subject>
+ <dc:description>  In a quantum mechanical model, Diosi, Feldmann and Kosloff arrived at a
+conjecture stating that the limit of the entropy of certain mixtures is the
+relative entropy as system size goes to infinity. The conjecture is proven in
+this paper for density matrices. The first proof is analytic and uses the
+quantum law of large numbers. The second one clarifies the relation to channel
+capacity per unit cost for classical-quantum channels. Both proofs lead to
+generalization of the conjecture.
+</dc:description>
+ <dc:description>Comment: LATEX file, 11 pages</dc:description>
+ <dc:date>2007-04-01</dc:date>
+ <dc:type>text</dc:type>
+ <dc:identifier>http://arxiv.org/abs/0704.0046</dc:identifier>
+ <dc:identifier>J. Math. Phys. 48(2007), 092102.</dc:identifier>
+ <dc:identifier>doi:10.1063/1.2779138</dc:identifier>
+ </oai_dc:dc>
+</metadata>
+</record>
+</ListRecords>

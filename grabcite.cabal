@@ -29,6 +29,7 @@ library
                      , GrabCite.Pipeline.IceCiteBasic
                      , GrabCite.Pipeline.Tex
                      , GrabCite.IceCite.Types
+                     , GrabCite.Arxiv
                      , Util.Regex
                      , Util.Tex
                      , Util.Sentence
@@ -39,7 +40,7 @@ library
                        process >= 1.4,
                        text,
                        bifunctors,
-                       path,
+                       path >= 0.6.1,
                        path-io,
                        unordered-containers,
                        aeson >= 1.0,
@@ -59,7 +60,14 @@ library
                        vector,
                        simple-logger,
                        edit-distance,
-                       megaparsec
+                       megaparsec,
+                       conduit,
+                       xml-conduit,
+                       xml-types,
+                       resourcet,
+                       errors,
+                       exceptions,
+                       typed-process
   default-language:    Haskell2010
   ghc-options:         -Wall
 
@@ -117,6 +125,8 @@ test-suite grabcite-test
                      , bytestring
                      , vector
                      , simple-logger
+                     , conduit
+                     , resourcet
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
