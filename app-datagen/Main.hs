@@ -12,6 +12,7 @@ module Main where
 
 import GrabCite
 import GrabCite.Annotate
+import GrabCite.Arxiv
 import GrabCite.Context
 import GrabCite.Dblp
 import GrabCite.GetCitations
@@ -23,7 +24,9 @@ import Control.Concurrent.Async
 import Control.Exception
 import Control.Logger.Simple
 import Control.Monad
+import Control.Monad.Trans.Resource
 import Data.Aeson
+import Data.Conduit
 import Data.List
 import Data.Maybe
 import Options.Generic
@@ -47,7 +50,9 @@ data Config w
     , c_textMode :: w ::: Bool <?> "Is the directory already holding text files?"
     , c_iceCiteMode :: w ::: Bool <?> "Is the directory holding ice-cite files?"
     , c_iceCiteBasicMode :: w ::: Bool <?> "Like ice-cite, but ignore most roles."
-    , c_texMode :: w ::: Bool <?> "Input directory is holding tex/bib files."
+    , c_texMode :: w ::: Bool <?> "Input directory is holding tex/bbl files."
+    , c_arxivToTexMode :: w ::: Bool <?> "Convert an arxiv dump to a tex/bbl directory"
+    , c_arxivMetaXml :: w ::: Maybe FilePath <?> "Arxiv meta xml location"
     , c_outDir :: w ::: FilePath <?> "Directory to write the output to"
     , c_jobs :: w ::: Int <?> "Number of concurrent tasks to run"
     , c_context :: w ::: Int <?> "Number of words before and after to consider as context (context mode)"
@@ -83,7 +88,28 @@ main =
        inDir <- handleDir (c_inDir cfg)
        outDir <- handleDir (c_outDir cfg)
        createDirIfMissing True outDir
-       mode <-
+       case (c_arxivToTexMode cfg, c_arxivMetaXml cfg) of
+         (True, Just fp) ->
+             do fp' <- handleFile fp
+                runArxivConv fp' inDir outDir
+         (True, Nothing) ->
+             fail "Missing --arxiv-meta-xml argument"
+         _ -> runDataGen cfg inDir outDir
+
+runArxivConv :: Path Rel File -> Path Rel Dir -> Path Rel Dir -> IO ()
+runArxivConv metaXml inDir outDir =
+    do let cfg =
+               ArxivCfg
+               { ac_metaXml = metaXml
+               , ac_srcFileDir = inDir
+               , ac_desiredSpec = "cs"
+               }
+       runResourceT $
+           arxivSpecLoadingPipeline cfg $$ arxivSpecCopySink outDir
+
+runDataGen :: Config Unwrapped -> Path Rel Dir -> Path Rel Dir -> IO ()
+runDataGen cfg inDir outDir =
+    do mode <-
            case (c_textMode cfg, c_iceCiteMode cfg, c_iceCiteBasicMode cfg, c_texMode cfg) of
              (False, False, False, False) -> pure InPdf
              (True, False, False, False) -> pure InText
@@ -239,6 +265,11 @@ mkTextBody nds =
                       let refMarker =
                               " <" <> textGlobalId (cr_tag ref) <> "> "
                       in loop more (accum <> TLB.fromText refMarker)
+
+handleFile :: FilePath -> IO (Path Rel File)
+handleFile fp
+    | FP.isAbsolute fp = parseAbsFile fp >>= makeRelativeToCurrentDir
+    | otherwise = parseRelFile fp
 
 handleDir :: FilePath -> IO (Path Rel Dir)
 handleDir fp

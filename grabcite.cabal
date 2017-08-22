@@ -107,6 +107,8 @@ executable grabcite-datagen
                      , async
                      , simple-logger
                      , pcre-heavy
+                     , resourcet
+                     , conduit
   default-language:    Haskell2010
 
 test-suite grabcite-test
