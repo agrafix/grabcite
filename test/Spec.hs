@@ -205,49 +205,60 @@ main =
            do res <- flip parseTex False <$> T.readFile (toFilePath texFile)
               shouldSatisfy res isRight
        let cfg = Cfg { c_refCache = rc }
-       describe "citation extractor" $ forM_ testCases $ \(inFile, ymlFile) ->
-           do describe ("testcase " <> toFilePath (filename inFile)) $
-                  do res <-
-                         runIO $
-                         do logNote ("Working on " <> showText (toFilePath inFile))
-                            case fileExtension inFile of
-                                ".pdf" -> getCitationsFromPdf cfg inFile
-                                ".json" ->
-                                    BS.readFile (toFilePath inFile) >>= getCitationsFromIceCiteJson cfg
-                                ".tex" ->
-                                    do bblFile <-
-                                           setFileExtension "bbl" inFile
-                                       x <- BS.readFile (toFilePath inFile)
-                                       hasBbl <- doesFileExist bblFile
-                                       y <-
-                                           if hasBbl
-                                           then Just <$> BS.readFile (toFilePath bblFile)
-                                           else pure Nothing
-                                       getCitationsFromTex cfg x y
-                                ext ->
-                                    fail ("Unknown input extension: " ++ show ext)
-                     info <-
-                         runIO $
-                         do r <- decodeFileEither (toFilePath ymlFile)
-                            case r of
-                              Left errMsg -> fail (prettyPrintParseException errMsg)
-                              Right ok -> pure ok
-                     let dblpRefs =
-                             flip mapMaybe (maybe [] er_nodes res) $ \cn ->
-                             case cn of
-                               CnText _ -> Nothing
-                               CnRef r ->
-                                   join $ db_url <$> cr_tag r
-                         requiredRefs =
-                             S.fromList (pi_dblpRefs info)
-                         actualRefs = S.fromList dblpRefs
-                     it "is parsed" $
-                         res `shouldNotBe` Nothing
-                     it "has no missing dblp references" $
-                         requiredRefs `S.difference` actualRefs `shouldBe` S.empty
-                     it "does not have extra (wrong) dblp references" $
-                         actualRefs `S.difference` requiredRefs `shouldBe` S.empty
-                     it "has correct own dblp" $
-                         join (fmap db_url (join (fmap er_paperId res)))
-                             `shouldBe` pi_paperId info
-                     return ()
+       describe "citation extractor" $ citExtractorSpec cfg testCases
+
+prepareCitExtractor ::
+    Cfg
+    -> (Path b1 File, Path b t)
+    -> IO (Maybe (ExtractionResult (Maybe DblpPaper)), PaperInfo, [T.Text], S.Set T.Text, S.Set T.Text)
+prepareCitExtractor cfg (inFile, ymlFile) =
+    do res <-
+           do logNote ("Working on " <> showText (toFilePath inFile))
+              case fileExtension inFile of
+                ".pdf" -> getCitationsFromPdf cfg inFile
+                ".json" ->
+                    BS.readFile (toFilePath inFile) >>= getCitationsFromIceCiteJson cfg
+                ".tex" ->
+                    do bblFile <-
+                           setFileExtension "bbl" inFile
+                       x <- BS.readFile (toFilePath inFile)
+                       hasBbl <- doesFileExist bblFile
+                       y <-
+                           if hasBbl
+                           then Just <$> BS.readFile (toFilePath bblFile)
+                           else pure Nothing
+                       getCitationsFromTex cfg x y
+                ext ->
+                    fail ("Unknown input extension: " ++ show ext)
+       info <-
+           do r <- decodeFileEither (toFilePath ymlFile)
+              case r of
+                Left errMsg -> fail (prettyPrintParseException errMsg)
+                Right ok -> pure ok
+       let dblpRefs =
+               flip mapMaybe (maybe [] er_nodes res) $ \cn ->
+               case cn of
+                 CnText _ -> Nothing
+                 CnRef r ->
+                     join $ db_url <$> cr_tag r
+           requiredRefs =
+               S.fromList (pi_dblpRefs info)
+           actualRefs = S.fromList dblpRefs
+       pure (res, info, dblpRefs, requiredRefs, actualRefs)
+
+citExtractorSpec ::
+    Foldable t1 => Cfg -> t1 (Path b1 File, Path b t) -> Spec
+citExtractorSpec cfg testCases =
+    forM_ testCases $ \(inFile, ymlFile) ->
+    beforeAll (prepareCitExtractor cfg (inFile, ymlFile)) $
+    do describe ("testcase " <> toFilePath (filename inFile)) $
+           do it "is parsed" $ \(res, _, _, _, _) ->
+                  res `shouldNotBe` Nothing
+              it "has no missing dblp references" $ \(_, _, _, requiredRefs, actualRefs) ->
+                  requiredRefs `S.difference` actualRefs `shouldBe` S.empty
+              it "does not have extra (wrong) dblp references" $ \(_, _, _, requiredRefs, actualRefs) ->
+                  actualRefs `S.difference` requiredRefs `shouldBe` S.empty
+              it "has correct own dblp" $ \(res, info, _, _, _) ->
+                  join (fmap db_url (join (fmap er_paperId res)))
+                  `shouldBe` pi_paperId info
+              return ()
