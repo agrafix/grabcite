@@ -14,6 +14,7 @@ module Util.Tex
 where
 
 import Control.Monad
+import Data.Char
 import Data.Either
 import Data.Void
 import Text.Megaparsec
@@ -221,8 +222,12 @@ text allowBrackets =
     where
       umlauts x y =
           try (char '\\' *> char '"' *> char x *> pure y)
-      excapedChr x =
-          try (char '\\' *> char x *> pure x)
+      escapedChrGen :: Parser Char
+      escapedChrGen =
+          try $
+          do _ <- char '\\'
+             x <- satisfy (\c -> not (isAlphaNum c))
+             pure x
       literalVal =
           umlauts 'a' 'ä'
           <|> umlauts 'u' 'ü'
@@ -230,16 +235,7 @@ text allowBrackets =
           <|> umlauts 'A' 'Ä'
           <|> umlauts 'U' 'Ü'
           <|> umlauts 'O' 'Ö'
-          <|> excapedChr '\\'
-          <|> excapedChr '$'
-          <|> excapedChr '{'
-          <|> excapedChr '}'
-          <|> excapedChr ' '
-          <|> excapedChr ','
-          <|> excapedChr '\t'
-          <|> excapedChr '"'
-          <|> excapedChr '%'
-          <|> excapedChr '~'
+          <|> escapedChrGen
           <|> try (pure ' ' <* char '~')
           <|> satisfy cond
       cond c =
