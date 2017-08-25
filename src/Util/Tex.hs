@@ -139,7 +139,7 @@ bodyP =
     [ uncurry BEnv <$> env (many bodyP)
     , BMath <$ try math
     , BText <$> try (text True)
-    , BCmd <$> try command
+    , BCmd <$> try (command False)
     , BMany <$> ([] <$ try comment)
     , BMany <$> curly (many bodyP)
     ]
@@ -147,7 +147,7 @@ bodyP =
 argBodyP :: Bool -> Parser Body
 argBodyP allowBrackets =
     choice
-    [ BCmd <$> try command
+    [ BCmd <$> try (command True)
     , BMath <$ try math
     , BText <$> try (text allowBrackets)
     , BMany <$> ([] <$ try comment)
@@ -158,16 +158,16 @@ comment :: Parser ()
 comment =
     char '%' *> skipManyTill (notChar '\n') (void $ char '\n')
 
-cmdIdent :: Parser T.Text
-cmdIdent = (lexeme . try) (p >>= fixup)
+cmdIdent :: Bool -> Parser T.Text
+cmdIdent allowBeginEnd = (lexeme . try) (p >>= fixup)
   where
     p :: Parser String
     p = (:) <$> char '\\' <*> some letterChar
     fixup x =
-        do case x of
-             "\\begin" -> fail "Found begin"
-             "\\end" -> fail "Found end"
-             _ -> pure (T.drop 1 $ T.pack x)
+        case x of
+          "\\begin" | not allowBeginEnd -> fail "Found begin"
+          "\\end" | not allowBeginEnd -> fail "Found end"
+          _ -> pure (T.drop 1 $ T.pack x)
 
 commandArgParser :: Parser [Either [Body] [Body]]
 commandArgParser =
@@ -178,9 +178,9 @@ commandArgParser =
 mkCmd :: T.Text -> [Either [Body] [Body]] -> Cmd
 mkCmd name args = Cmd (T.toLower name) (lefts args) (rights args)
 
-command :: Parser Cmd
-command =
-    do name <- cmdIdent
+command :: Bool -> Parser Cmd
+command allowBeginEnd =
+    do name <- cmdIdent allowBeginEnd
        args <- commandArgParser
        pure $
            mkCmd name args
