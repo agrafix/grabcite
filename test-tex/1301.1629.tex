@@ -1,0 +1,150 @@
+%\documentclass[preprint]{sigplanconf}
+\documentclass{llncs}
+\usepackage{xspace}
+\usepackage{color}
+\usepackage[linesnumbered,noend,noline]{algorithm2e}
+\SetAlFnt{\small}
+\SetInd{0.5em}{0.5em}
+\usepackage[leqno]{amsmath}
+\usepackage{amssymb}
+\usepackage{tikz}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{url}
+\usepackage{wrapfig}
+%\usepackage{MnSymbol}
+\usepackage{graphicx}
+\usepackage{epsfig}
+\usepackage[draft]{fixme}
+%\usepackage{mathptm}
+%\usepackage[compact]{titlesec}
+\newcommand{\IGNORE}[1]{\fixme{IGNORED: #1}}
+\renewcommand{\IGNORE}[1]{}
+\usepackage{listings}
+\lstset{language=C}
+\lstset{mathescape=true}
+\lstset{basicstyle=\small,columns=flexible,xleftmargin=-0em}
+\lstset{escapeinside={(*@}{@*)}}
+\lstset{numbers=left,numbersep=0.2em,firstnumber=1,numberblanklines=false}
+\lstset{numberstyle=\tiny,stepnumber=1}
+\lstset{captionpos=b}
+\lstset{morekeywords=_Bool}
+\renewcommand{\lstlistingname}{Prog.}
+%\usepackage{caption}
+%\makeatletter
+%\let\@copyrightspace\relax
+%\makeatother
+%\captionsetup[figure]{name=Fig.,labelfont={bf}}
+\renewcommand{\figurename}{Fig.}
+%\usepackage{theorem}
+%\usepackage{qed}
+%\usepackage{amsthm}
+%\usepackage{titlesec}
+%\theoremstyle{remark}
+%\renewenvironment{proof}{Proof.}{\hfill\itesquare}
+\newif\ifcomments
+\commentsfalse
+\usepackage{url}
+
+\newcommand{\Daniel}[1]{\ifcomments\textcolor{green}{\footnotesize DK: #1}\fi}
+\newcommand{\Jade}[1]{\ifcomments\textcolor{blue}{\footnotesize JA: #1}\fi}
+\newcommand{\Michael}[1]{\ifcomments\textcolor{red}{\footnotesize MT: #1}\fi}
+
+
+\input{include/macros}
+\input{include/litmus}
+
+  \let\oldthebibliography=\thebibliography
+  \let\endoldthebibliography=\endthebibliography
+  \renewenvironment{thebibliography}[1]{%
+    \begin{oldthebibliography}{#1}%
+      \setlength{\parskip}{0ex}%
+      \setlength{\itemsep}{0ex}%
+      \small
+  }%
+  {%
+    \end{oldthebibliography}%
+  }
+
+% make := mathop
+\mathchardef\ordinarycolon\mathcode`\:
+\mathcode`\:=\string"8000
+\begingroup \catcode`\:=\active
+\gdef:{\mathrel{\mathop\ordinarycolon}}
+\endgroup
+
+%\renewenvironment{proof}{% 
+%             \vspace{-1ex}\noindent{\small{\sc SoP.}}\hspace{-.2ex}%
+%             }{% 
+%             \hfill$\square$%
+%\smallskip}
+%\setlength{\textfloatsep}{3pt}
+%%\setlength{\intextsep}{0pt}
+%\setlength{\floatsep}{3pt}
+%%\titlespacing{\section}{}{2ex}{2ex}
+\begin{document}
+\makeatletter
+\gdef\thelstlisting{\@arabic\c@lstlisting}
+\makeatother
+
+%\conferenceinfo{WXYZ '05}{date, City.} 
+%\copyrightyear{2005} 
+%\copyrightdata{[to be supplied]} 
+
+%\titlebanner{draft, do not distribute}        % These are ignored unless
+%\preprintfooter{draft, do not distribute}   % 'preprint' option specified.
+
+\title{Partial Orders for Efficient BMC of~Concurrent~Software}
+
+\author{Jade Alglave\inst{1} \and Daniel Kroening\inst{2}
+\and Michael Tautschnig\inst{2,3}} 
+\institute{University College London \and University of Oxford \and Queen Mary,
+University of London}
+
+\pagestyle{plain}
+
+\maketitle
+
+\begin{abstract}
+\input{include/abstract}
+\end{abstract}
+
+%\category{CR-number}{subcategory}{third-level}
+%
+%\terms
+%term1, term2
+%
+%\keywords
+%keyword1, keyword2
+
+%    \titlespacing*{\paragraph} % Command
+%        {0pt}                  % Margin
+%        {1.5ex}                % Space above
+%        {1ex}                  % Space before text
+
+%    \newtheoremstyle{jade} % Name
+%        {5pt}              % Space above
+%        {5pt}              % Space below
+%        {\em}                 % Body font
+%        {}                 % Indent amount
+%        {\sc}              % Theorem head font
+%        {.}                % Punctuation after theorem head
+%        {.3ex}             % Space after theorem head
+%        {}                 % Theorem head spec (can be left empty, meaning ‘normal’)
+
+%    \theoremstyle{jade}
+%    \newtheorem{lemma}{\small{Lem.}}
+%    \newtheorem{theorem}{\small{Thm.}}
+%    \theoremstyle{plain}
+
+\input{include/introduction}
+\input{include/related-work}
+\input{include/context}
+\input{include/c-to-aes}
+\input{include/aes-to-ces}
+\input{include/experiments}
+\input{include/conclusion}
+
+\bibliographystyle{splncs03}
+\bibliography{papers/aes}
+\end{document}

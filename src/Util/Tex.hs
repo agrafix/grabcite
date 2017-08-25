@@ -162,7 +162,10 @@ cmdIdent :: Bool -> Parser T.Text
 cmdIdent allowBeginEnd = (lexeme . try) (p >>= fixup)
   where
     p :: Parser String
-    p = (:) <$> char '\\' <*> some letterChar
+    p =
+        (:)
+        <$> char '\\'
+        <*> some (letterChar <|> char '@') -- @ is allowed in internal latex commands
     fixup x =
         case x of
           "\\begin" | not allowBeginEnd -> fail "Found begin"
@@ -209,7 +212,7 @@ math =
 env :: Parser a -> Parser (Cmd, a)
 env action =
     do name <-
-           T.pack <$>
+           try $ T.pack <$>
            beginP (some alphaNumChar <* optional (char '*'))
        args <- commandArgParser
        r <- action
