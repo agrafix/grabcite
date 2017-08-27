@@ -90,12 +90,18 @@ getCitationsFromTex ::
     -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
 getCitationsFromTex rc bs mBbl =
     do res <-
-           case texAsInput (TexInput (T.decodeUtf8 bs) (T.decodeUtf8 <$> mBbl)) of
+           case texAsInput (TexInput (robustDecode bs) (robustDecode <$> mBbl)) of
              Left errMsg ->
                  do logError (T.pack errMsg)
                     pure Nothing
              Right ok -> pure (Just ok)
        T.mapM (go rc) res
+
+robustDecode :: BS.ByteString -> T.Text
+robustDecode bs =
+    case T.decodeUtf8' bs of
+      Left _ -> T.decodeLatin1 bs
+      Right ok -> ok
 
 go :: Cfg -> Input -> IO (ExtractionResult (Maybe DblpPaper))
 go rc txt =
