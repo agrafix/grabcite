@@ -136,7 +136,7 @@ endP s =
 bodyP :: Parser Body
 bodyP =
     choice
-    [ uncurry BEnv <$> env (many bodyP)
+    [ uncurry BEnv <$> env [] (many bodyP)
     , BMath <$ try math
     , BText <$> try (text True)
     , BCmd <$> try (command False)
@@ -209,14 +209,20 @@ math =
         cond c =
             c /= '$'
 
-env :: Parser a -> Parser (Cmd, a)
-env action =
+env :: a -> Parser a -> Parser (Cmd, a)
+env def action =
     do name <-
            try $ T.pack <$>
            beginP (some alphaNumChar <* optional (char '*'))
        args <- commandArgParser
-       r <- action
-       endP (symbol name <* optional (char '*'))
+       let lowerName = T.toLower name
+       (r, parseEnd) <-
+           if lowerName == "verbatim" || lowerName == "highlighting"
+           then do _ <- skipManyTill anyChar (endP (symbol name <* optional (char '*')))
+                   pure (def, False)
+           else do x <- action
+                   pure (x, True)
+       when parseEnd $ endP (symbol name <* optional (char '*'))
        pure (mkCmd name args, r)
 
 text :: Bool -> Parser T.Text
