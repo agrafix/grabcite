@@ -9,9 +9,11 @@ import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.IceCite.Types
 import GrabCite.Pipeline
+import GrabCite.Tei
 import Util.Sentence
 import Util.Tex
 
+import Control.Lens
 import Control.Logger.Simple
 import Control.Monad
 import Control.Monad.Trans.Resource
@@ -25,6 +27,7 @@ import Path
 import Path.IO
 import qualified Data.ByteString as BS
 import qualified Data.Conduit.List as CL
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Sequence as Seq
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -133,6 +136,12 @@ sampleSplitText =
     , "Winter and coworkers  <DBLP:http://dblp.org/rec/conf/calco/WinterBR11> study\ncontext-free languages in a coalgebraic setting."
     ]
 
+shouldBeRight :: (HasCallStack, Show err) => Either err a -> IO a
+shouldBeRight x =
+    case x of
+      Left errMsg -> fail $ show errMsg
+      Right ok -> pure ok
+
 main :: IO ()
 main =
     withGlobalLogging (LogConfig Nothing True) $
@@ -170,6 +179,18 @@ main =
                            , mh_setSpec = "cs"
                            }
                          ]
+       describe "grobid tei parser" $
+           do it "parses correctly" $
+                  do resE <- parseTeiXml [relfile|test-xml/W00-0104.tei.xml|]
+                     res <- shouldBeRight resE
+                     let resHdr = td_header res
+                         resBdy = td_body res
+                     th_title resHdr `shouldBe` Just "Automatic Extraction of Systematic Polysemy Using Tree-cut"
+                     th_abstract resHdr `shouldSatisfy` isJust
+                     T.length (T.intercalate " " . mapMaybe (^? _TnText) $ tb_content resBdy) `shouldSatisfy` (>= 2000)
+                     length (mapMaybe (^? _TnRef) $ tb_content resBdy) `shouldBe` 9
+                     HM.size (tb_references resBdy) `shouldBe` 20
+
        describe "sentence splitting" $
            do let splitTest intercal =
                       it ("works for a medium sized example (intercal. by: " <> show intercal <> ")") $
