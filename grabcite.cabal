@@ -113,6 +113,7 @@ executable grabcite-datagen
                      , pcre-heavy
                      , resourcet
                      , conduit
+                     , timespan
   default-language:    Haskell2010
 
 test-suite grabcite-test

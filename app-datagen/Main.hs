@@ -29,6 +29,7 @@ import Data.Aeson
 import Data.Conduit
 import Data.List
 import Data.Maybe
+import Data.Time.TimeSpan
 import Options.Generic
 import Path
 import Path.IO
@@ -157,8 +158,9 @@ workLoop mode ctxWrite ctxWords jobs outDir st todoQueue rc =
     do let upNext = take jobs todoQueue
            todoQueue' = drop jobs todoQueue
        cmarkers <-
-           fmap catMaybes $
+           fmap (catMaybes . catMaybes) $
            forConcurrently upNext $ \f ->
+           timeoutTS (minutes 2) $
            do cm <-
                   try $! handlePdf mode rc ctxWords f
               case cm of
