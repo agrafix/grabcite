@@ -4,6 +4,7 @@ module GrabCite
     , getCitationsFromTex
     , getCitationsFromIceCiteJson
     , getCitationsFromIceCiteBasicJson
+    , getCitationsFromGrobidXml
     , Cfg(..)
     )
 where
@@ -12,6 +13,7 @@ import GrabCite.Annotate
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.Pipeline
+import GrabCite.Pipeline.Grobid
 import GrabCite.Pipeline.IceCite
 import GrabCite.Pipeline.IceCiteBasic
 import GrabCite.Pipeline.PdfToText
@@ -49,6 +51,16 @@ getCitationsFromPdfBs rc bs =
 
 getCitationsFromPlainText :: Cfg -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
 getCitationsFromPlainText c = go c . pdfToTextAsInput
+
+getCitationsFromGrobidXml :: Cfg -> BS.ByteString -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
+getCitationsFromGrobidXml rc bs =
+    do res <-
+           case grobidXmlAsInput bs of
+             Left errMsg ->
+                 do logError (T.pack errMsg)
+                    pure Nothing
+             Right ok -> pure (Just ok)
+       T.mapM (go rc) res
 
 getCitationsFromIceCiteJson :: Cfg -> BS.ByteString -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
 getCitationsFromIceCiteJson rc bs =

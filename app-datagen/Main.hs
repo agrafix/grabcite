@@ -45,8 +45,10 @@ import qualified System.FilePath as FP
 
 data Config w
     = Config
-    { c_inDir :: w ::: FilePath <?> "Directory holding the paper PDFs"
+    { c_inDir :: w ::: FilePath <?> "Directory holding the input files"
     , c_recursive :: w ::: Bool <?> "Should we recursively look for papers in input dir?"
+    , c_pdfMode :: w ::: Bool <?> "PDF input files"
+    , c_grobidMode :: w ::: Bool <?> "Grobid Tei XML input files"
     , c_textMode :: w ::: Bool <?> "Is the directory already holding text files?"
     , c_iceCiteMode :: w ::: Bool <?> "Is the directory holding ice-cite files?"
     , c_iceCiteBasicMode :: w ::: Bool <?> "Like ice-cite, but ignore most roles."
@@ -77,6 +79,7 @@ data InMode
     | InIceCite
     | InIceCiteBasic
     | InTex
+    | InGrobid
 
 main :: IO ()
 main =
@@ -110,13 +113,14 @@ runArxivConv metaXml inDir outDir =
 runDataGen :: Config Unwrapped -> Path Rel Dir -> Path Rel Dir -> IO ()
 runDataGen cfg inDir outDir =
     do mode <-
-           case (c_textMode cfg, c_iceCiteMode cfg, c_iceCiteBasicMode cfg, c_texMode cfg) of
-             (False, False, False, False) -> pure InPdf
-             (True, False, False, False) -> pure InText
-             (False, True, False, False) -> pure InIceCite
-             (False, False, True, False) -> pure InIceCiteBasic
-             (False, False, False, True) -> pure InTex
-             _ -> fail "Can not use tex, textMode and iceCite, iceCiteBasic mode!"
+           case (c_pdfMode cfg, c_textMode cfg, c_iceCiteMode cfg, c_iceCiteBasicMode cfg, c_texMode cfg, c_grobidMode cfg) of
+             (True, False, False, False, False, False) -> pure InPdf
+             (False, True, False, False, False, False) -> pure InText
+             (False, False, True, False, False, False) -> pure InIceCite
+             (False, False, False, True, False, False) -> pure InIceCiteBasic
+             (False, False, False, False, True, False) -> pure InTex
+             (False, False, False, False, False, True) -> pure InGrobid
+             _ -> fail "Can only use one mode at a time!"
        let descender =
                if c_recursive cfg
                then Just (\_ _ __ -> pure $ WalkExclude [])
@@ -132,6 +136,7 @@ runDataGen cfg inDir outDir =
                                     InIceCite -> ".json"
                                     InIceCiteBasic -> ".json"
                                     InTex -> ".tex"
+                                    InGrobid -> ".xml"
                           in \f -> fileExtension f == ext
                   pure pdfFiles
        (out :: Seq.Seq (Path Abs File)) <-
@@ -226,6 +231,7 @@ handlePdf mode rc ctxWords fp =
            case mode of
              InText -> Just <$> getCitationsFromTextFile rc fp
              InPdf -> getCitationsFromPdf rc fp
+             InGrobid -> BS.readFile (toFilePath fp) >>= getCitationsFromGrobidXml rc
              InIceCite -> BS.readFile (toFilePath fp) >>= getCitationsFromIceCiteJson rc
              InIceCiteBasic ->
                  BS.readFile (toFilePath fp)

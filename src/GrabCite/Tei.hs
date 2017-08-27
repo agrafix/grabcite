@@ -19,20 +19,19 @@ import Data.Hashable
 import Data.List (foldl', find)
 import Data.Maybe
 import Data.Monoid
-import Path
 import Text.XML as Xml
 import Text.XML.Lens
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 
-parseTeiXml :: Path a File -> IO (Either String TeiDoc)
-parseTeiXml p =
-    do bs <- BSL.readFile (toFilePath p)
-       case Xml.parseLBS opts bs of
-         Left errMsg -> pure (Left $ show errMsg)
-         Right ok -> pure $ Right $ parseDoc ok
+parseTeiXml :: BS.ByteString -> Either String TeiDoc
+parseTeiXml bs =
+    case Xml.parseLBS opts (BSL.fromStrict bs) of
+      Left errMsg -> Left $ show errMsg
+      Right ok -> Right $ parseDoc ok
 
 opts :: ParseSettings
 opts =

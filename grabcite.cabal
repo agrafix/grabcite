@@ -28,6 +28,7 @@ library
                      , GrabCite.Pipeline.IceCite
                      , GrabCite.Pipeline.IceCiteBasic
                      , GrabCite.Pipeline.Tex
+                     , GrabCite.Pipeline.Grobid
                      , GrabCite.IceCite.Types
                      , GrabCite.Arxiv
                      , GrabCite.Tei

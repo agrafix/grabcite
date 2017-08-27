@@ -181,7 +181,7 @@ main =
                          ]
        describe "grobid tei parser" $
            do it "parses correctly" $
-                  do resE <- parseTeiXml [relfile|test-xml/W00-0104.tei.xml|]
+                  do resE <- parseTeiXml <$> BS.readFile (toFilePath [relfile|test-xml/W00-0104.tei.xml|])
                      res <- shouldBeRight resE
                      let resHdr = td_header res
                          resBdy = td_body res
