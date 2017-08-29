@@ -16,6 +16,7 @@ where
 import Control.Monad
 import Data.Char
 import Data.Either
+import Data.Maybe
 import Data.Void
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -163,9 +164,22 @@ cmdIdent allowBeginEnd = (lexeme . try) (p >>= fixup)
   where
     p :: Parser String
     p =
-        (:)
-        <$> char '\\'
-        <*> some (letterChar <|> char '@') -- @ is allowed in internal latex commands
+        do open <- char '\\'
+           name <- some (letterChar <|> char '@')
+           endCharOpt <- optional (endChar name)
+           pure $ (open : name) ++ maybeToList endCharOpt
+    brackets =
+        char ']'
+        <|> char '['
+        <|> char ')'
+        <|> char '('
+    endChar name =
+        try $
+        char '*' <|>
+        case toLower <$> name of
+          "big" -> brackets
+          "bigg" -> brackets
+          _ -> mzero
     fixup x =
         case x of
           "\\begin" | not allowBeginEnd -> fail "Found begin"
