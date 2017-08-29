@@ -1,0 +1,76 @@
+\def\ts{\textstyle}
+\def\smallromani{\renewcommand{\theenumi}{\roman{enumi}}
+\renewcommand{\labelenumi}{(\theenumi)}}
+\def\smallromaniprime{\renewcommand{\theenumi}{\roman{enumi}\mbox{$'$}}
+\renewcommand{\labelenumi}{(\theenumi)}}
+\def\smallromanir{\renewcommand{\theenumi}{\roman{enumi}}
+\renewcommand{\labelenumi}{\theenumi)}}
+\def\smallromanii{\renewcommand{\theenumii}{\roman{enumii}}
+\renewcommand{\labelenumii}{(\theenumii)}}
+\def\parentarabici{\renewcommand{\theenumi}{\arabic{enumi}}
+\renewcommand{\labelenumi}{(\theenumi)}}
+\def\parentarabicii{\renewcommand{\theenumii}{\arabic{enumii}}
+\renewcommand{\labelenumii}{(\theenumii)}}
+\def\eqnum{\renewcommand{\theequation}{\arabic{equation}}
+\renewcommand{\labelequation}{(\theequation)}}
+
+\def\parentalphi{\renewcommand{\theenumi}{\alph{enumi}}
+\renewcommand{\labelenumi}{(\theenumi)}}
+
+%\setcounter{section}{0}
+%\setcounter{subsection}{2}
+
+%\newcounter{ProblemCnt}
+%\newcommand{\problem}{\NI
+%                     \stepcounter{ProblemCnt}
+%                     {\bf \thechapter.\theProblemCnt}}
+\newcommand{\Proof}{\NI
+                    {\bf Proof.}\ }
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{defined}[theorem]{Definition}
+\newenvironment{definition}{\begin{defined} \rm}{\end{defined}}
+\newtheorem{exa}[theorem]{Example}
+\newenvironment{example}{\begin{exa} \rm}{\end{exa}}
+\newtheorem{proposition}[theorem]{Proposition}
+%\newtheorem{figure}[theorem]
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{note}[theorem]{Note}
+\newtheorem{fact}{Fact}
+\newtheorem{claim}{Claim}
+\newtheorem{exe}{Exercise}
+\newenvironment{exercise}{\begin{exe} \rm }{\end{exe}}
+\newtheorem{pro}{Problem}
+\newenvironment{problem}{\begin{pro} \rm }{\end{pro}}
+
+\newenvironment{program}{\tt \begin{tabbing}pro\= {\tt pro}\= clause \kill}{\end{tabbing}}
+\newenvironment{pprogram}{\tt \begin{tabbing}\= {\tt pro}\= clause \kill}{\end{tabbing}}
+
+\newcounter{symbol}
+\setcounter{symbol}{9} 
+\newcommand{\indexsyma}[1]%
+{\stepcounter{symbol}\index{zzz1 \thesymbol @\protect#1}}
+\newcommand{\indexsymb}[1]%
+{\stepcounter{symbol}\index{zzz2 \thesymbol @\protect#1}}
+\newcommand{\indexsymc}[1]%
+{\stepcounter{symbol}\index{zzz3 \thesymbol @\protect#1}}
+\newcommand{\indexsymd}[1]%
+{\stepcounter{symbol}\index{zzz4 \thesymbol @\protect#1}}
+\newcommand{\indexsyme}[1]%
+{\stepcounter{symbol}\index{zzz5 \thesymbol @\protect#1}}
+
+\newcommand{\name}[1]{\index{zz #1@#1}}
+
+%\newcommand{authorindex}{\chapter*{Author Index}
+%\thispagestyle{plain}
+%\addcontentsline{toc}{chapter}{Author Index}
+%\vspace{15mm} }
+
+%\newcommand{symbolindex}{\chapter*{Symbol Index}
+%\thispagestyle{plain}
+%\addcontentsline{toc}{chapter}{Symbol Index}
+%\vspace{15mm} }
+
+

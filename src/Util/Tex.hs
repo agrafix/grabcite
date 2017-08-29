@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-}
 -- |
 -- Module: Util.Tex
@@ -17,9 +18,11 @@ import Control.Monad
 import Data.Char
 import Data.Either
 import Data.Maybe
+import Data.Monoid
 import Data.Void
 import Text.Megaparsec
 import Text.Megaparsec.Char
+import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -35,15 +38,23 @@ tryIt =
 
 parseTex :: T.Text -> Bool -> Either String [Body]
 parseTex inp debug =
-    case parse ((if debug then dbg "t" else id) docP) "<tex input>" inp of
-      Left errMsg -> Left (parseErrorPretty errMsg)
-      Right ok -> Right $ simpleBodyList ok
+    appParser inp debug "<tex input>" docP
 
 parseBbl :: T.Text -> Bool -> Either String [Body]
 parseBbl inp debug =
-    case parse ((if debug then dbg "t" else id) bibP) "<bbl input>" inp of
-      Left errMsg -> Left (parseErrorPretty errMsg)
-      Right ok -> Right $ simpleBodyList ok
+    appParser inp debug "<bbl input>" bibP
+
+appParser ::
+    T.Text
+    -> Bool
+    -> String
+    -> Parser [Body]
+    -> Either String [Body]
+appParser inp debug name p =
+    let r = parse ((if debug then dbg "t" else id) p) name inp
+    in case r of
+         Left errMsg -> Left (parseErrorPretty errMsg)
+         Right ok -> Right $ simpleBodyList ok
 
 data Body
     = BCmd !Cmd
@@ -148,8 +159,8 @@ bodyP =
 argBodyP :: Bool -> Parser Body
 argBodyP allowBrackets =
     choice
-    [ BCmd <$> try (command True)
-    , BMath <$ try math
+    [ BMath <$ try math
+    , BCmd <$> try (command True)
     , BText <$> try (text allowBrackets)
     , BMany <$> ([] <$ try comment)
     , BMany <$> curly (many $ argBodyP True)
@@ -204,7 +215,10 @@ command allowBeginEnd =
 
 math :: Parser ()
 math =
-    doubleDollar <|> simpleDollar
+    doubleDollar
+    <|> simpleDollar
+    <|> latexShortHand "[" "]"
+    <|> latexShortHand "(" ")"
     where
         doubleDollar =
             do _ <- try $ symbol "$$"
@@ -212,6 +226,10 @@ math =
                    skipSomeTill
                    (mathVal <|> (char '$' <* notFollowedBy (char '$')))
                    (symbol "$$")
+               pure ()
+        latexShortHand o c =
+            do _ <- try $ symbol ("\\" <> o)
+               _ <- skipSomeTill anyChar (try $ symbol ("\\" <> c))
                pure ()
         simpleDollar =
             do _ <- try $ char '$'
@@ -223,6 +241,28 @@ math =
         cond c =
             c /= '$'
 
+mathEnvs :: S.Set T.Text
+mathEnvs =
+    S.fromList
+    [ "math"
+    , "displaymath"
+    , "equation"
+    , "equation*"
+    , "eqnarray"
+    , "eqnarray*"
+    , "align"
+    , "align*"
+    , "gather"
+    , "gather*"
+    ]
+
+verbatimEnvs :: S.Set T.Text
+verbatimEnvs =
+    S.fromList
+    [ "verbatim"
+    , "highlighting"
+    ]
+
 env :: a -> Parser a -> Parser (Cmd, a)
 env def action =
     do name <-
@@ -230,9 +270,11 @@ env def action =
            beginP (some alphaNumChar <* optional (char '*'))
        args <- commandArgParser
        let lowerName = T.toLower name
+           skipEnvs = verbatimEnvs <> mathEnvs
        (r, parseEnd) <-
-           if lowerName == "verbatim" || lowerName == "highlighting"
-           then do _ <- skipManyTill anyChar (endP (symbol name <* optional (char '*')))
+           if lowerName `S.member` skipEnvs
+           then do _ <-
+                       skipManyTill anyChar (try $ endP (symbol name <* optional (char '*')))
                    pure (def, False)
            else do x <- action
                    pure (x, True)
