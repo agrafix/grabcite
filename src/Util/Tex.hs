@@ -237,7 +237,7 @@ text allowBrackets =
       escapedChrGen =
           try $
           do _ <- char '\\'
-             x <- satisfy (\c -> not (isAlphaNum c))
+             x <- satisfy (\c -> not (isAlpha c))
              pure x
       literalVal =
           umlauts 'a' 'ä'
