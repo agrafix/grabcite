@@ -1,5 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
 module GrabCite.GlobalId
     ( globalCitId, textGlobalId
     , GlobalId(..)
@@ -13,9 +14,11 @@ import Util.Text
 import Control.Applicative
 import Control.Monad
 import Data.Char
+import Data.Hashable
 import Data.List
 import Data.Maybe
 import Data.Monoid
+import GHC.Generics
 import Text.Regex.PCRE.Heavy
 import qualified Data.Text as T
 
@@ -24,7 +27,9 @@ data GlobalId
     | GiArxiv !T.Text
     | GiDoi !T.Text
     | GiCustom !T.Text
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic)
+
+instance Hashable GlobalId
 
 textGlobalId :: GlobalId -> T.Text
 textGlobalId gi =

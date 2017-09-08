@@ -167,13 +167,15 @@ workLoop mode ctxWrite ctxWords jobs outDir st todoQueue rc =
                 Left (ex :: SomeException) ->
                     do logError ("Failed to work on " <> showText f <> ": " <> showText ex)
                        pure Nothing
-                Right (paperId, ok, full) ->
+                Right (paperId, ok, full, refTable) ->
                     do fbase <-
                            parseRelFile $ FP.dropExtension $ toFilePath $ filename f
                        fullWriter <-
                            async $
                            do let fullFile = toFilePath (outDir </> fbase) <> ".txt"
                               T.writeFile fullFile full
+                              let refsFile = toFilePath (outDir </> fbase) <> ".refs"
+                              T.writeFile refsFile (refTableText refTable)
                               case paperId of
                                 Nothing -> logInfo "No paper info"
                                 Just pp ->
@@ -202,6 +204,12 @@ workLoop mode ctxWrite ctxWords jobs outDir st todoQueue rc =
           else do logInfo "All done"
                   pure ()
 
+refTableText :: HM.HashMap GlobalId T.Text -> T.Text
+refTableText tbl =
+    T.unlines $ map go $ HM.toList tbl
+    where
+      go (gid, line) =
+          textGlobalId gid <> ";" <> line <> ";"
 
 updateState :: State -> (Path Abs File, [ContextedMarker]) -> State
 updateState st (f, cxm) =
@@ -227,7 +235,9 @@ updateState st (f, cxm) =
                }
     in foldl' updateCxm baseSt cxm
 
-handlePdf :: InMode -> Cfg -> Int -> Path Abs File -> IO (Maybe DblpPaper, [ContextedMarker], T.Text)
+handlePdf ::
+    InMode -> Cfg -> Int -> Path Abs File
+    -> IO (Maybe DblpPaper, [ContextedMarker], T.Text, HM.HashMap GlobalId T.Text)
 handlePdf mode rc ctxWords fp =
     do cits <-
            case mode of
@@ -250,13 +260,19 @@ handlePdf mode rc ctxWords fp =
        case cits of
          Nothing ->
              do logError ("Failed to get citations from " <> showText fp)
-                pure (Nothing, [], "")
+                pure (Nothing, [], "", mempty)
          Just er ->
              let nodes = globalCitId <$> er_nodes er
+                 uniqueRefs =
+                     let refNodes = mapMaybe getRefNode nodes
+                         go mp rn =
+                             HM.insert (cr_tag rn) (cr_info rn) mp
+                     in foldl' go mempty refNodes
              in pure
                   ( er_paperId er
                   , getContextedMarkers ctxWords nodes
                   , sentenceSplitter $ mkTextBody nodes
+                  , uniqueRefs
                   )
 
 mkTextBody :: [ContentNode GlobalId] -> T.Text
