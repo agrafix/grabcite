@@ -193,7 +193,7 @@ refTableText tbl =
     T.unlines $ map go $ HM.toList tbl
     where
       go (gid, line) =
-          textGlobalId gid <> ";" <> line <> ";"
+          textGlobalId gid <> ";" <> T.strip (T.replace ";" "," (T.replace "\n" " " line)) <> ";"
 
 updateState :: State -> Path Abs File -> State
 updateState st f =
