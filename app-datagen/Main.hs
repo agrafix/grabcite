@@ -13,7 +13,6 @@ module Main where
 import GrabCite
 import GrabCite.Annotate
 import GrabCite.Arxiv
-import GrabCite.Context
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.GlobalId
@@ -23,7 +22,6 @@ import qualified Data.ByteString as BS
 import Control.Concurrent.Async
 import Control.Exception
 import Control.Logger.Simple
-import Control.Monad
 import Control.Monad.Trans.Resource
 import Data.Aeson
 import Data.Conduit
@@ -58,9 +56,7 @@ data Config w
     , c_arxivMetaXml :: w ::: Maybe FilePath <?> "Arxiv meta xml location"
     , c_outDir :: w ::: FilePath <?> "Directory to write the output to"
     , c_jobs :: w ::: Int <?> "Number of concurrent tasks to run"
-    , c_context :: w ::: Int <?> "Number of words before and after to consider as context (context mode)"
     , c_debug :: w ::: Bool <?> "Enable debug output"
-    , c_writeContexts :: w ::: Bool <?> "Should context files be written"
     } deriving (Generic)
 
 instance ParseRecord (Config Wrapped) where
@@ -147,14 +143,14 @@ runDataGen cfg inDir outDir =
        let todoPdfs = filter (not . flip S.member (s_completed state)) $ F.toList out
        logNote $ "Unhandled files: " <> showText (length todoPdfs)
        withRefCache (outDir </> [relfile|ref_cache.json|]) $ \rc ->
-           workLoop mode (c_writeContexts cfg) (c_context cfg) (c_jobs cfg) outDir state
+           workLoop mode (c_jobs cfg) outDir state
            todoPdfs (Cfg rc)
 
 sentenceSplitter :: T.Text -> T.Text
 sentenceSplitter = T.intercalate "\n============\n" . sentenceSplit
 
-workLoop :: InMode -> Bool -> Int -> Int -> Path Rel Dir -> State -> [Path Abs File] -> Cfg -> IO ()
-workLoop mode ctxWrite ctxWords jobs outDir st todoQueue rc =
+workLoop :: InMode -> Int -> Path Rel Dir -> State -> [Path Abs File] -> Cfg -> IO ()
+workLoop mode jobs outDir st todoQueue rc =
     do let upNext = take jobs todoQueue
            todoQueue' = drop jobs todoQueue
        cmarkers <-
@@ -162,12 +158,12 @@ workLoop mode ctxWrite ctxWords jobs outDir st todoQueue rc =
            forConcurrently upNext $ \f ->
            timeoutTS (minutes 2) $
            do cm <-
-                  try $! handlePdf mode rc ctxWords f
+                  try $! handlePdf mode rc f
               case cm of
                 Left (ex :: SomeException) ->
                     do logError ("Failed to work on " <> showText f <> ": " <> showText ex)
                        pure Nothing
-                Right (paperId, ok, full, refTable) ->
+                Right (paperId, full, refTable) ->
                     do fbase <-
                            parseRelFile $ FP.dropExtension $ toFilePath $ filename f
                        fullWriter <-
@@ -183,24 +179,12 @@ workLoop mode ctxWrite ctxWords jobs outDir st todoQueue rc =
                                        logInfo ("Wrote meta file to " <> showText metaFile)
                                        BSL.writeFile metaFile (encode pp)
                               logInfo ("Wrote full text to " <> showText fullFile)
-                       when ctxWrite $
-                           forConcurrently_ (zip ok [1..]) $ \(mc, idx :: Int) ->
-                           do let fpTarget =
-                                      toFilePath (outDir </> fbase)
-                                      <> "_" <> T.unpack (textGlobalId (mc_id mc))
-                                      <> "_" <> show idx <> ".txt"
-                              T.writeFile fpTarget $
-                                  mc_before mc
-                                  <> " "
-                                  <> "[" <> textGlobalId (mc_id mc) <> "]"
-                                  <> " "
-                                  <> mc_after mc
                        wait fullWriter
-                       pure $ Just (f, ok)
+                       pure $ Just f
        let st' = foldl' updateState st cmarkers
        writeState outDir st'
        if not (null todoQueue')
-          then workLoop mode ctxWrite ctxWords jobs outDir st' todoQueue' rc
+          then workLoop mode jobs outDir st' todoQueue' rc
           else do logInfo "All done"
                   pure ()
 
@@ -211,34 +195,16 @@ refTableText tbl =
       go (gid, line) =
           textGlobalId gid <> ";" <> line <> ";"
 
-updateState :: State -> (Path Abs File, [ContextedMarker]) -> State
-updateState st (f, cxm) =
-    let baseSt =
-            st
-            { s_completed = S.insert f (s_completed st)
-            }
-        updateCxm s c =
-            let wordPrior =
-                    listToMaybe $ reverse $ T.words (mc_before c)
-                wordAfter =
-                    listToMaybe $ T.words (mc_after c)
-            in s
-               { s_refCount = HM.insertWith (+) (textGlobalId (mc_id c)) 1 (s_refCount s)
-               , s_wordPrior =
-                       case wordPrior of
-                         Just wp -> HM.insertWith (+) wp 1 (s_wordPrior s)
-                         Nothing -> s_wordPrior s
-               , s_wordAfter =
-                       case wordAfter of
-                         Just wp -> HM.insertWith (+) wp 1 (s_wordAfter s)
-                         Nothing -> s_wordAfter s
-               }
-    in foldl' updateCxm baseSt cxm
+updateState :: State -> Path Abs File -> State
+updateState st f =
+    st
+    { s_completed = S.insert f (s_completed st)
+    }
 
 handlePdf ::
-    InMode -> Cfg -> Int -> Path Abs File
-    -> IO (Maybe DblpPaper, [ContextedMarker], T.Text, HM.HashMap GlobalId T.Text)
-handlePdf mode rc ctxWords fp =
+    InMode -> Cfg -> Path Abs File
+    -> IO (Maybe DblpPaper, T.Text, HM.HashMap GlobalId T.Text)
+handlePdf mode rc fp =
     do cits <-
            case mode of
              InText -> Just <$> getCitationsFromTextFile rc fp
@@ -260,7 +226,7 @@ handlePdf mode rc ctxWords fp =
        case cits of
          Nothing ->
              do logError ("Failed to get citations from " <> showText fp)
-                pure (Nothing, [], "", mempty)
+                pure (Nothing, "", mempty)
          Just er ->
              let nodes = globalCitId <$> er_nodes er
                  uniqueRefs =
@@ -270,7 +236,6 @@ handlePdf mode rc ctxWords fp =
                      in foldl' go mempty refNodes
              in pure
                   ( er_paperId er
-                  , getContextedMarkers ctxWords nodes
                   , sentenceSplitter $ mkTextBody nodes
                   , uniqueRefs
                   )
