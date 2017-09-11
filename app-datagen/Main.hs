@@ -268,18 +268,12 @@ handleDir fp
 data State
     = State
     { s_completed :: !(S.Set (Path Abs File))
-    , s_refCount :: !(HM.HashMap T.Text Int)
-    , s_wordPrior :: !(HM.HashMap T.Text Int)
-    , s_wordAfter :: !(HM.HashMap T.Text Int)
     } deriving (Show, Eq, Generic)
 
 initState :: State
 initState =
     State
     { s_completed = S.empty
-    , s_refCount = HM.empty
-    , s_wordPrior = HM.empty
-    , s_wordAfter = HM.empty
     }
 
 instance ToJSON State
