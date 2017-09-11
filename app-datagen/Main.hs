@@ -163,7 +163,7 @@ workLoop mode jobs outDir st todoQueue rc =
                 Left (ex :: SomeException) ->
                     do logError ("Failed to work on " <> showText f <> ": " <> showText ex)
                        pure Nothing
-                Right (paperId, full, refTable) ->
+                Right (paperMeta, full, refTable) ->
                     do fbase <-
                            parseRelFile $ FP.dropExtension $ toFilePath $ filename f
                        fullWriter <-
@@ -172,7 +172,7 @@ workLoop mode jobs outDir st todoQueue rc =
                               T.writeFile fullFile full
                               let refsFile = toFilePath (outDir </> fbase) <> ".refs"
                               T.writeFile refsFile (refTableText refTable)
-                              case paperId of
+                              case paperMeta of
                                 Nothing -> logInfo "No paper info"
                                 Just pp ->
                                     do let metaFile = toFilePath (outDir </> fbase) <> ".meta"
@@ -201,9 +201,44 @@ updateState st f =
     { s_completed = S.insert f (s_completed st)
     }
 
+data PaperMeta
+    = PaperMeta
+    { pm_title :: !T.Text
+    , pm_authors :: ![T.Text]
+    , pm_url :: !(Maybe T.Text)
+    } deriving (Show, Eq)
+
+instance ToJSON PaperMeta where
+    toJSON pm =
+        object
+        [ "title" .= pm_title pm
+        , "authors" .= pm_authors pm
+        , "url" .= pm_url pm
+        ]
+
+exResToMeta :: ExtractionResult (Maybe DblpPaper) -> Maybe PaperMeta
+exResToMeta er =
+    case er_paperId er of
+      Just dp ->
+          Just PaperMeta
+          { pm_title = dp_title dp
+          , pm_authors = dp_authors dp
+          , pm_url = db_url dp
+          }
+      Nothing ->
+          case er_titleLine er of
+            Just ln ->
+                Just PaperMeta
+                { pm_title = ln
+                , pm_authors = []
+                , pm_url = Nothing
+                }
+            Nothing ->
+                Nothing
+
 handlePdf ::
     InMode -> Cfg -> Path Abs File
-    -> IO (Maybe DblpPaper, T.Text, HM.HashMap GlobalId T.Text)
+    -> IO (Maybe PaperMeta, T.Text, HM.HashMap GlobalId T.Text)
 handlePdf mode rc fp =
     do cits <-
            case mode of
@@ -235,7 +270,7 @@ handlePdf mode rc fp =
                              HM.insert (cr_tag rn) (cr_info rn) mp
                      in foldl' go mempty refNodes
              in pure
-                  ( er_paperId er
+                  ( exResToMeta er
                   , sentenceSplitter $ mkTextBody nodes
                   , uniqueRefs
                   )

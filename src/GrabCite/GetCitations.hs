@@ -92,6 +92,7 @@ getRefNode cn =
 data ExtractionResult t
     = ExtractionResult
     { er_paperId :: !t
+    , er_titleLine :: !(Maybe T.Text)
     , er_citations :: ![CitInfoCand]
     , er_markers :: ![CitMarkerCand]
     , er_nodes :: ![ContentNode t]
@@ -109,6 +110,7 @@ handlePreCited :: CitedIn -> ExtractionResult ()
 handlePreCited ci =
     ExtractionResult
     { er_paperId = ()
+    , er_titleLine = Nothing
     , er_citations = mkCitation <$> HM.toList (ci_references ci)
     , er_markers = mkMarker (F.toList $ ci_textCorpus ci)
     , er_nodes = mkNode (F.toList $ ci_textCorpus ci)
@@ -193,6 +195,7 @@ extractCitations' input =
         rMarkers = relevantMarkers matchedCands markerCands
     in ExtractionResult
        { er_paperId = ()
+       , er_titleLine = Nothing
        , er_citations = matchedCands
        , er_markers = rMarkers
        , er_nodes = toNodes textCorpus matchedCands rMarkers
