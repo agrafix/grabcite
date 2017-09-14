@@ -61,8 +61,8 @@ findPaperQ =
           <> "FROM paper, to_tsquery($2) query "
           <> "WHERE title = $1 "
           <> "OR dblp_url = $3 "
-          <> "OR query @@ title_vector "
-          <> "OR (title % $1 AND similarity(title, $1) > 0.2) "
+          <> "OR (query @@ title_vector "
+          <> "AND title % $1 AND similarity(title, $1) > 0.5) "
           <> "ORDER BY rank DESC LIMIT 25"
       encoder =
           req ps_title
@@ -172,7 +172,7 @@ hasContentQ :: Query (PaperId, T.Text) (Maybe PaperContentId)
 hasContentQ =
     statement sql encoder decoder True
     where
-      sql = "SELECT id FROM paper_content where paper = $1 AND source = $2"
+      sql = "SELECT id FROM paper_content where paper = $1 AND source = $2 LIMIT 1"
       encoder = req fst <> req snd
       decoder = D.maybeRow dbDecVal
 

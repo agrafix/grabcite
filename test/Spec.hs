@@ -10,6 +10,7 @@ import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.IceCite.Types
 import GrabCite.Pipeline
+import GrabCite.Pipeline.Tex
 import GrabCite.Tei
 import Util.Sentence
 import Util.Tex
@@ -226,6 +227,19 @@ main =
            it ("should parse " <> toFilePath texFile) $
            do res <- flip parseTex False <$> T.readFile (toFilePath texFile)
               shouldSatisfy res isRight
+       describe "get good title from tex files" $
+           it "Should work for mu-regular-epsilon.tex" $
+           do let out = "Partial Derivatives for Context-Free Languages"
+                  fp = testTexDir </> [relfile|mu-regular-epsilon.tex|]
+              fpc <- T.readFile $ toFilePath fp
+              let r = texAsInput (TexInput fpc Nothing)
+              case r of
+                Left err -> fail err
+                Right ok ->
+                    case ok of
+                      InCited ci ->
+                          ci_title ci `shouldBe` out
+                      _ -> fail ("Bad ok: " ++ show ok)
        let cfg = Cfg { c_refCache = rc }
        describe "citation extractor" $ citExtractorSpec cfg testCases
 

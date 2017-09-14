@@ -120,7 +120,7 @@ handleBody bdy =
       BCmd (Cmd "emph" cargs _) -> mapM_ handleBody (concat cargs)
       BCmd (Cmd "title" cargs _) ->
           case cargs of
-            ((BText x : _) : _) -> setTitle x
+            ((BText x : _) : _) -> setTitle $ T.unwords $ T.words x
             _ ->
                 pure $ pureWarn ("Bad title: " <> showText bdy) ()
       BCmd (Cmd "cite" cargs _) ->
