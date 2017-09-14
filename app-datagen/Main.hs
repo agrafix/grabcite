@@ -13,12 +13,13 @@ module Main where
 import GrabCite
 import GrabCite.Annotate
 import GrabCite.Arxiv
+import GrabCite.DB
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.GlobalId
 import Util.Sentence
-import qualified Data.ByteString as BS
 
+import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception
 import Control.Logger.Simple
@@ -31,6 +32,8 @@ import Data.Time.TimeSpan
 import Options.Generic
 import Path
 import Path.IO
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HM
@@ -40,6 +43,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TLB
+import qualified Data.Traversable as T
 import qualified System.FilePath as FP
 
 data Config w
@@ -54,7 +58,11 @@ data Config w
     , c_texMode :: w ::: Bool <?> "Input directory is holding tex/bbl files."
     , c_arxivToTexMode :: w ::: Bool <?> "Convert an arxiv dump to a tex/bbl directory"
     , c_arxivMetaXml :: w ::: Maybe FilePath <?> "Arxiv meta xml location"
-    , c_outDir :: w ::: FilePath <?> "Directory to write the output to"
+    , c_outDir :: w ::: Maybe FilePath <?> "Directory to write the output to"
+    , c_outDb :: w ::: Maybe String <?> "PostgreSQL database to sync with (connection string)"
+    , c_dbMigDir :: w ::: Maybe FilePath <?> "Directory holding database migration scripts"
+    , c_dbOverwrite :: w ::: Bool <?> "Should existing content be overwritten?"
+    , c_dataSourceName :: w ::: Maybe String <?> "What's the name of the data set"
     , c_jobs :: w ::: Int <?> "Number of concurrent tasks to run"
     , c_debug :: w ::: Bool <?> "Enable debug output"
     } deriving (Generic)
@@ -78,6 +86,27 @@ data InMode
     | InTex
     | InGrobid
 
+data OutDbCfg
+    = OutDbCfg
+    { odc_connStr :: !String
+    , odc_migDir :: !FilePath
+    , odc_overwrite :: !Bool
+    , odc_srcName :: !String
+    }
+
+data OutDb
+    = OutDb
+    { od_store :: !Store
+    , od_overwrite :: !Bool
+    , od_src :: !String
+    }
+
+data OutMode
+    = OutMode
+    { om_dir :: !(Maybe (Path Rel Dir))
+    , om_db :: !(Maybe OutDb)
+    }
+
 main :: IO ()
 main =
     withGlobalLogging (LogConfig Nothing True) $
@@ -86,15 +115,40 @@ main =
            cfg = x
        setLogLevel (if c_debug cfg then LogDebug else LogInfo)
        inDir <- handleDir (c_inDir cfg)
-       outDir <- handleDir (c_outDir cfg)
-       createDirIfMissing True outDir
-       case (c_arxivToTexMode cfg, c_arxivMetaXml cfg) of
-         (True, Just fp) ->
+       outDir <-
+           flip T.mapM (c_outDir cfg) $ \(odx :: FilePath) ->
+           do od <- handleDir odx
+              createDirIfMissing True od
+              pure od
+       outDb <-
+           flip T.mapM (c_outDb cfg) $ \odb ->
+           do let oc :: Maybe OutDbCfg
+                  oc =
+                      OutDbCfg
+                      <$> pure odb
+                      <*> c_dbMigDir cfg
+                      <*> pure (c_dbOverwrite cfg)
+                      <*> c_dataSourceName cfg
+              case oc of
+                Nothing ->
+                    fail "Missing some database params"
+                Just ok -> pure ok
+       case (c_arxivToTexMode cfg, c_arxivMetaXml cfg, outDir) of
+         (True, Just fp, Just od) ->
              do fp' <- handleFile fp
-                runArxivConv fp' inDir outDir
-         (True, Nothing) ->
+                runArxivConv fp' inDir od
+         (True, Nothing, _) ->
              fail "Missing --arxiv-meta-xml argument"
-         _ -> runDataGen cfg inDir outDir
+         (True, _, Nothing) ->
+             fail "Missing --out-dir argument"
+         _ ->
+             do let withStore go =
+                        case outDb of
+                          Nothing -> go Nothing
+                          Just y ->
+                              do st <- newPgSqlStore (odc_migDir y) (BSC.pack $ odc_connStr y)
+                                 go (Just $ OutDb st (odc_overwrite y) (odc_srcName y))
+                withStore $ \s -> runDataGen cfg inDir (OutMode outDir s)
 
 runArxivConv :: Path Rel File -> Path Rel Dir -> Path Rel Dir -> IO ()
 runArxivConv metaXml inDir outDir =
@@ -107,8 +161,8 @@ runArxivConv metaXml inDir outDir =
        runResourceT $
            arxivSpecLoadingPipeline cfg $$ arxivSpecCopySink outDir
 
-runDataGen :: Config Unwrapped -> Path Rel Dir -> Path Rel Dir -> IO ()
-runDataGen cfg inDir outDir =
+runDataGen :: Config Unwrapped -> Path Rel Dir -> OutMode -> IO ()
+runDataGen cfg inDir outMode =
     do mode <-
            case (c_pdfMode cfg, c_textMode cfg, c_iceCiteMode cfg, c_iceCiteBasicMode cfg, c_texMode cfg, c_grobidMode cfg) of
              (True, False, False, False, False, False) -> pure InPdf
@@ -139,18 +193,22 @@ runDataGen cfg inDir outDir =
        (out :: Seq.Seq (Path Abs File)) <-
            walkDirAccum descender outwriter inDir
        logInfo $ "Found " <> showText (length out) <> " in files in " <> showText inDir
-       state <- loadState outDir
+       state <- fromMaybe initState <$> T.mapM loadState (om_dir outMode)
        let todoPdfs = filter (not . flip S.member (s_completed state)) $ F.toList out
        logNote $ "Unhandled files: " <> showText (length todoPdfs)
-       withRefCache (outDir </> [relfile|ref_cache.json|]) $ \rc ->
-           workLoop mode (c_jobs cfg) outDir state
+       let cacheMaker =
+               case om_dir outMode of
+                 Just d -> withRefCache (d </> [relfile|ref_cache.json|])
+                 Nothing -> withMemRefCache
+       cacheMaker $ \rc ->
+           workLoop mode (c_jobs cfg) outMode state
            todoPdfs (Cfg rc)
 
 sentenceSplitter :: T.Text -> T.Text
 sentenceSplitter = T.intercalate "\n============\n" . sentenceSplit
 
-workLoop :: InMode -> Int -> Path Rel Dir -> State -> [Path Abs File] -> Cfg -> IO ()
-workLoop mode jobs outDir st todoQueue rc =
+workLoop :: InMode -> Int -> OutMode -> State -> [Path Abs File] -> Cfg -> IO ()
+workLoop mode jobs outMode st todoQueue rc =
     do let upNext = take jobs todoQueue
            todoQueue' = drop jobs todoQueue
        cmarkers <-
@@ -163,28 +221,48 @@ workLoop mode jobs outDir st todoQueue rc =
                 Left (ex :: SomeException) ->
                     do logError ("Failed to work on " <> showText f <> ": " <> showText ex)
                        pure Nothing
-                Right (paperMeta, full, refTable) ->
-                    do fbase <-
-                           parseRelFile $ FP.dropExtension $ toFilePath $ filename f
-                       fullWriter <-
-                           async $
-                           do let fullFile = toFilePath (outDir </> fbase) <> ".txt"
-                              T.writeFile fullFile full
-                              let refsFile = toFilePath (outDir </> fbase) <> ".refs"
-                              T.writeFile refsFile (refTableText refTable)
-                              case paperMeta of
-                                Nothing -> logInfo "No paper info"
-                                Just pp ->
-                                    do let metaFile = toFilePath (outDir </> fbase) <> ".meta"
-                                       logInfo ("Wrote meta file to " <> showText metaFile)
-                                       BSL.writeFile metaFile (encode pp)
-                              logInfo ("Wrote full text to " <> showText fullFile)
-                       wait fullWriter
-                       pure $ Just f
+                Right (paperMeta, extractRes, full, refTable) ->
+                    do fw <-
+                         case om_dir outMode of
+                         Just outDir ->
+                             do fbase <-
+                                    parseRelFile $ FP.dropExtension $ toFilePath $ filename f
+                                fullWriter <-
+                                    async $
+                                    do let fullFile = toFilePath (outDir </> fbase) <> ".txt"
+                                       T.writeFile fullFile full
+                                       let refsFile = toFilePath (outDir </> fbase) <> ".refs"
+                                       T.writeFile refsFile (refTableText refTable)
+                                       case paperMeta of
+                                         Nothing -> logInfo "No paper info"
+                                         Just pp ->
+                                             do let metaFile = toFilePath (outDir </> fbase) <> ".meta"
+                                                logInfo ("Wrote meta file to " <> showText metaFile)
+                                                BSL.writeFile metaFile (encode pp)
+                                       logInfo ("Wrote full text to " <> showText fullFile)
+                                wait fullWriter
+                                pure $ Just f
+                         Nothing -> pure Nothing
+                       fw2 <-
+                           case extractRes of
+                             Just r ->
+                                 do out <-
+                                        try $!
+                                        flip F.mapM_ (om_db outMode) $ \outDb ->
+                                        handleExtractionResult (od_store outDb) (od_overwrite outDb)
+                                            (ExtractionSource $ T.pack (od_src outDb)) r
+                                    case out of
+                                      Left (ex :: SomeException) ->
+                                          do logError ("Failed to write " <> showText f <> " to db: " <> showText ex)
+                                             pure Nothing
+                                      Right _ -> pure (Just f)
+                             Nothing ->
+                                 pure Nothing
+                       pure (fw <|> fw2)
        let st' = foldl' updateState st cmarkers
-       writeState outDir st'
+       F.mapM_ (\d -> writeState d st') (om_dir outMode)
        if not (null todoQueue')
-          then workLoop mode jobs outDir st' todoQueue' rc
+          then workLoop mode jobs outMode st' todoQueue' rc
           else do logInfo "All done"
                   pure ()
 
@@ -238,7 +316,10 @@ exResToMeta er =
 
 handlePdf ::
     InMode -> Cfg -> Path Abs File
-    -> IO (Maybe PaperMeta, T.Text, HM.HashMap GlobalId T.Text)
+    -> IO ( Maybe PaperMeta
+          , Maybe (ExtractionResult (Maybe DblpPaper))
+          , T.Text, HM.HashMap GlobalId T.Text
+          )
 handlePdf mode rc fp =
     do cits <-
            case mode of
@@ -261,7 +342,7 @@ handlePdf mode rc fp =
        case cits of
          Nothing ->
              do logError ("Failed to get citations from " <> showText fp)
-                pure (Nothing, "", mempty)
+                pure (Nothing, Nothing, "", mempty)
          Just er ->
              let nodes = globalCitId <$> er_nodes er
                  uniqueRefs =
@@ -271,6 +352,7 @@ handlePdf mode rc fp =
                      in foldl' go mempty refNodes
              in pure
                   ( exResToMeta er
+                  , Just er
                   , sentenceSplitter $ mkTextBody nodes
                   , uniqueRefs
                   )

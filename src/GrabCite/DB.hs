@@ -248,7 +248,7 @@ handleExtractionResult store shouldOverwriteContent esrc er =
                 -- handle content
                 let fullText = mkTextBody cnodes
                     sents = sentenceSplit fullText
-                oldPcid <- Tx.query pid hasContentQ
+                oldPcid <- Tx.query (pid, unExtractionSource esrc) hasContentQ
                 case oldPcid of
                   Just pcid | shouldOverwriteContent ->
                                   do Tx.query pcid removeContentQ

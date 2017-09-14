@@ -168,12 +168,12 @@ type instance DbRepr PaperContentId = Int64
 instance DbDecode PaperContentId where
     unpackVal = PaperContentId
 
-hasContentQ :: Query PaperId (Maybe PaperContentId)
+hasContentQ :: Query (PaperId, T.Text) (Maybe PaperContentId)
 hasContentQ =
     statement sql encoder decoder True
     where
-      sql = "SELECT id FROM paper_content where paper = $1"
-      encoder = req id
+      sql = "SELECT id FROM paper_content where paper = $1 AND source = $2"
+      encoder = req fst <> req snd
       decoder = D.maybeRow dbDecVal
 
 removeContentQ :: Query PaperContentId ()
