@@ -287,9 +287,11 @@ citExtractorSpec cfg testCases =
                   withTempStore $ \store ->
                   case res of
                     Just r ->
-                        do x <- handleExtractionResult store True (ExtractionSource "test") r
-                           x `shouldBe` Just (PaperId 1)
-                           y <- handleExtractionResult store False (ExtractionSource "test") r
-                           y `shouldBe` x
+                        if isJust (er_titleLine r) || isJust (er_paperId r)
+                        then do x <- handleExtractionResult store True (ExtractionSource "test") r
+                                x `shouldBe` Just (PaperId 1)
+                                y <- handleExtractionResult store False (ExtractionSource "test") r
+                                y `shouldBe` x
+                        else pure ()
                     Nothing -> pure ()
               return ()
