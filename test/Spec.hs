@@ -5,6 +5,7 @@ import Test.Hspec
 import GrabCite
 import GrabCite.Annotate
 import GrabCite.Arxiv
+import GrabCite.DB
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.IceCite.Types
@@ -282,4 +283,13 @@ citExtractorSpec cfg testCases =
               it "has correct own dblp" $ \(res, info, _, _, _) ->
                   join (fmap db_url (join (fmap er_paperId res)))
                   `shouldBe` pi_paperId info
+              it "should correclty be written to the database" $ \(res, _, _, _, _) ->
+                  withTempStore $ \store ->
+                  case res of
+                    Just r ->
+                        do x <- handleExtractionResult store True (ExtractionSource "test") r
+                           x `shouldBe` Just (PaperId 1)
+                           y <- handleExtractionResult store False (ExtractionSource "test") r
+                           y `shouldBe` x
+                    Nothing -> pure ()
               return ()

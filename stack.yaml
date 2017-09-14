@@ -2,6 +2,10 @@ resolver: lts-9.0
 packages:
   - '.'
   - location:
+      git: https://github.com/agrafix/hasql-simple
+      commit: b3334720595c1f425361832abad5f119570c1558
+    extra-dep: true
+  - location:
       git: https://github.com/agrafix/simple-logger
       commit: 9b359de3073bab6d3e0097cf87929a00d55b54e6
     extra-dep: true

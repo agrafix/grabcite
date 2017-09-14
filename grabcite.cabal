@@ -32,11 +32,14 @@ library
                      , GrabCite.IceCite.Types
                      , GrabCite.Arxiv
                      , GrabCite.Tei
+                     , GrabCite.DB
                      , Util.Regex
                      , Util.Tex
                      , Util.Sentence
   other-modules:       Util.Pdf
                      , Util.Text
+                     , GrabCite.DB.Internal
+                     , GrabCite.DB.Schema
   build-depends:       base >= 4.7 && < 5,
                        bytestring >= 0.10,
                        process >= 1.4,
@@ -71,7 +74,14 @@ library
                        errors,
                        exceptions,
                        typed-process,
-                       lens
+                       lens,
+                       hasql,
+                       hasql-pool,
+                       hasql-transaction,
+                       hasql-migration,
+                       hasql-simple,
+                       time,
+                       random
   default-language:    Haskell2010
   ghc-options:         -Wall
 
