@@ -14,6 +14,7 @@ import GrabCite.Pipeline.Tex
 import GrabCite.Tei
 import Util.Sentence
 import Util.Tex
+import qualified GrabCite.Pipeline.CiteSeerX as CSX
 
 import Control.Lens
 import Control.Logger.Simple
@@ -242,6 +243,7 @@ main =
                       _ -> fail ("Bad ok: " ++ show ok)
        let cfg = Cfg { c_refCache = rc }
        describe "citation extractor" $ citExtractorSpec cfg testCases
+       citeSeerXSpec
 
 prepareCitExtractor ::
     Cfg
@@ -309,3 +311,90 @@ citExtractorSpec cfg testCases =
                         else pure ()
                     Nothing -> pure ()
               return ()
+
+citeSeerXSpec :: Spec
+citeSeerXSpec =
+    describe "citeseerx pipeline" $
+    do it "parses contexts correctly" $
+           do CSX.parseCsContext csin1 `shouldBe` Just csout1
+              CSX.parseCsContext csin2 `shouldBe` Just csout2
+       it "merges text bits correctly" $
+           do CSX.findWordMerge m1 m2 `shouldBe` (Just "Hello I'm a test which is really cool")
+              CSX.findWordMerge m1 m3 `shouldBe` Nothing
+       it "merges no citation context correctly" $
+           CSX.mergeContexts [] `shouldBe` []
+       it "merges single citation context correctly" $
+           do let parsed =
+                      map (\(ci, t) -> (ci, fromJust $ CSX.parseCsContext t))
+                      [ (CSX.CsCitId "1", csin1)
+                      ]
+              CSX.mergeContexts parsed `shouldBe`
+                  [ TtText "n of common myopia in our families studied. Background Myopia is one of the leading causes of vision loss around the world[1]. In the United States, myopia affects approximately 25% of adult Americans"
+                  , TtCite "1"
+                  , TtText ". Ethnic diversity appears to distinguish different groups with regard to prevalence. Caucasians have a higher prevalence than African Americans[3]. Asian populations have the highest prevalence rates"
+                  ]
+       it "merges multiple citation contexts correctly" $
+           do let parsed =
+                      map (\(ci, t) -> (ci, fromJust $ CSX.parseCsContext t))
+                      [ (CSX.CsCitId "1", csin1)
+                      , (CSX.CsCitId "11", csin11)
+                      , (CSX.CsCitId "12", csin12)
+                      , (CSX.CsCitId "13", csin13)
+                      , (CSX.CsCitId "14", csin14)
+                      ]
+              CSX.mergeContexts parsed `shouldBe`
+                  [ TtText "n of common myopia in our families studied. Background Myopia is one of the leading causes of vision loss around the world[1]. In the United States, myopia affects approximately 25% of adult Americans"
+                  , TtCite "1"
+                  , TtText ". Ethnic diversity appears to distinguish different groups with regard to prevalence. Caucasians have a higher prevalence than African Americans"
+                  , TtCite "11"
+                  , TtText ". Asian populations have the highest prevalence rates with reports ranging from 50-90%[1, 4-5]. Jewish Caucasians, one of the target populations of the present study, have consistently demonstrated a higher myopia prevalence than the general Caucasian population in both U.S. and European population surveys; Orthodox Jewish males in particular show increased susceptibility"
+                  , TtCite "12"
+                  , TtCite "13"
+                  , TtText ". Despite many decades of research, little is known about the precise molecular defects and abnormal biochemical pathways that result in myopia. Compelling data from familial aggregation and twin stud"
+                  , TtText "e evidence against linkage in most of the families in this study. Previous studies attempting to confirm the high myopia loci on chromosomes 18 and 12 have yielded inconsistent results. Naiglin et al."
+                  , TtCite "14"
+                  , TtText "ollected 23 French families with high myopia (spherical equivalent ≥ -6D) and performed a genome scan with 400 markers. Significant linkage was not found on 18p and 12q. Lam et al.[20] mapped 15 fam"
+                  ]
+
+csin1 :: T.Text
+csin1 = "n of common myopia in our families studied. Background Myopia is one of the leading causes of vision loss around the world[1]. In the United States, myopia affects approximately 25% of adult Americans=-=[2]-=-. Ethnic diversity appears to distinguish different groups with regard to prevalence. Caucasians have a higher prevalence than African Americans[3]. Asian populations have the highest prevalence rates"
+
+csout1 :: CSX.CsContext
+csout1 =
+    CSX.CsContext
+    { CSX.cc_pre = "n of common myopia in our families studied. Background Myopia is one of the leading causes of vision loss around the world[1]. In the United States, myopia affects approximately 25% of adult Americans"
+    , CSX.cc_cit = "[2]"
+    , CSX.cc_post = ". Ethnic diversity appears to distinguish different groups with regard to prevalence. Caucasians have a higher prevalence than African Americans[3]. Asian populations have the highest prevalence rates"
+    }
+
+csin2 :: T.Text
+csin2 = "8] and Principal Component Analysis (PCA) [9,10], each being formulated in ANN terms in different ways [11–13]. Both the multilayer perceptron method and PCA feature slow learning (tuning) propertie=-=s [14]-=-. The ART network is a fast learning architecture using external behavioural feedback via the vigilance parameter, and it quickly memorises or replaces memories if the input and the reconstructed inpu"
+
+csout2 :: CSX.CsContext
+csout2 =
+    CSX.CsContext
+    { CSX.cc_pre = "8] and Principal Component Analysis (PCA) [9,10], each being formulated in ANN terms in different ways [11–13]. Both the multilayer perceptron method and PCA feature slow learning (tuning) propertie"
+    , CSX.cc_cit = "s [14]"
+    , CSX.cc_post = ". The ART network is a fast learning architecture using external behavioural feedback via the vigilance parameter, and it quickly memorises or replaces memories if the input and the reconstructed inpu"
+    }
+
+csin11 :: T.Text
+csin11 = ", myopia affects approximately 25% of adult Americans[2]. Ethnic diversity appears to distinguish different groups with regard to prevalence. Caucasians have a higher prevalence than African Americans=-=[3]-=-. Asian populations have the highest prevalence rates with reports ranging from 50-90%[1, 4-5]. Jewish Caucasians, one of the target populations of the present study, have consistently demonstrated a "
+
+csin12 :: T.Text
+csin12 = "nsistently demonstrated a higher myopia prevalence than the general Caucasian population in both U.S. and European population surveys; Orthodox Jewish males in particular show increased susceptibility=-=[6,7]-=-. Despite many decades of research, little is known about the precise molecular defects and abnormal biochemical pathways that result in myopia. Compelling data from familial aggregation and twin stud"
+
+csin13 :: T.Text
+csin13 = "nsistently demonstrated a higher myopia prevalence than the general Caucasian population in both U.S. and European population surveys; Orthodox Jewish males in particular show increased susceptibility=-=[6,7]-=-. Despite many decades of research, little is known about the precise molecular defects and abnormal biochemical pathways that result in myopia. Compelling data from familial aggregation and twin stud"
+
+csin14 :: T.Text
+csin14 = "e evidence against linkage in most of the families in this study. Previous studies attempting to confirm the high myopia loci on chromosomes 18 and 12 have yielded inconsistent results. Naiglin et al.=-=[19] c-=-ollected 23 French families with high myopia (spherical equivalent ≥ -6D) and performed a genome scan with 400 markers. Significant linkage was not found on 18p and 12q. Lam et al.[20] mapped 15 fam"
+
+m1 :: T.Text
+m1 = "Hello I'm a test"
+
+m2 :: T.Text
+m2 = "a test which is really cool"
+
+m3 :: T.Text
+m3 = "cool and awesome."
