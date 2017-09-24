@@ -18,6 +18,7 @@ import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.GlobalId
 import Util.Sentence
+import qualified Util.CiteSeerX as CSX
 
 import Control.Applicative
 import Control.Concurrent.Async
@@ -48,14 +49,10 @@ import qualified System.FilePath as FP
 
 data Config w
     = Config
-    { c_inDir :: w ::: FilePath <?> "Directory holding the input files"
+    { c_inMode :: w ::: InMode <?> "Input mode"
+    , c_inDir :: w ::: FilePath <?> "Directory holding the input files"
+    , c_inDbConnStr :: w ::: Maybe String <?> "Connection string, required for citeseerx input"
     , c_recursive :: w ::: Bool <?> "Should we recursively look for papers in input dir?"
-    , c_pdfMode :: w ::: Bool <?> "PDF input files"
-    , c_grobidMode :: w ::: Bool <?> "Grobid Tei XML input files"
-    , c_textMode :: w ::: Bool <?> "Is the directory already holding text files?"
-    , c_iceCiteMode :: w ::: Bool <?> "Is the directory holding ice-cite files?"
-    , c_iceCiteBasicMode :: w ::: Bool <?> "Like ice-cite, but ignore most roles."
-    , c_texMode :: w ::: Bool <?> "Input directory is holding tex/bbl files."
     , c_arxivToTexMode :: w ::: Bool <?> "Convert an arxiv dump to a tex/bbl directory"
     , c_arxivMetaXml :: w ::: Maybe FilePath <?> "Arxiv meta xml location"
     , c_outDir :: w ::: Maybe FilePath <?> "Directory to write the output to"
@@ -85,6 +82,12 @@ data InMode
     | InIceCiteBasic
     | InTex
     | InGrobid
+    | InCiteSeerX
+    deriving (Show, Generic, Read)
+
+instance ParseFields InMode
+instance ParseField InMode
+instance ParseRecord InMode
 
 data OutDbCfg
     = OutDbCfg
@@ -163,16 +166,8 @@ runArxivConv metaXml inDir outDir =
 
 runDataGen :: Config Unwrapped -> Path Rel Dir -> OutMode -> IO ()
 runDataGen cfg inDir outMode =
-    do mode <-
-           case (c_pdfMode cfg, c_textMode cfg, c_iceCiteMode cfg, c_iceCiteBasicMode cfg, c_texMode cfg, c_grobidMode cfg) of
-             (True, False, False, False, False, False) -> pure InPdf
-             (False, True, False, False, False, False) -> pure InText
-             (False, False, True, False, False, False) -> pure InIceCite
-             (False, False, False, True, False, False) -> pure InIceCiteBasic
-             (False, False, False, False, True, False) -> pure InTex
-             (False, False, False, False, False, True) -> pure InGrobid
-             _ -> fail "Can only use one mode at a time!"
-       let descender =
+    do let mode = c_inMode cfg
+           descender =
                if c_recursive cfg
                then Just (\_ _ __ -> pure $ WalkExclude [])
                else Just (\_ _ _ -> pure WalkFinish)
@@ -188,24 +183,90 @@ runDataGen cfg inDir outMode =
                                     InIceCiteBasic -> ".json"
                                     InTex -> ".tex"
                                     InGrobid -> ".xml"
+                                    InCiteSeerX -> ".dummy"
                           in \f -> fileExtension f == ext
                   pure pdfFiles
-       (out :: Seq.Seq (Path Abs File)) <-
-           walkDirAccum descender outwriter inDir
-       logInfo $ "Found " <> showText (length out) <> " in files in " <> showText inDir
-       state <- fromMaybe initState <$> T.mapM loadState (om_dir outMode)
-       let todoPdfs = filter (not . flip S.member (s_completed state)) $ F.toList out
-       logNote $ "Unhandled files: " <> showText (length todoPdfs)
        let cacheMaker =
                case om_dir outMode of
                  Just d -> withRefCache (d </> [relfile|ref_cache.json|])
                  Nothing -> withMemRefCache
-       cacheMaker $ \rc ->
-           workLoop mode (c_jobs cfg) outMode state
-           todoPdfs (Cfg rc)
+       state <- fromMaybe initState <$> T.mapM loadState (om_dir outMode)
+       case mode of
+         InCiteSeerX ->
+             case c_inDbConnStr cfg of
+               Nothing -> fail "Missing database connection for cite seer x data source"
+               Just str ->
+                   do logInfo "Running in CiteSeerX data source mode"
+                      cacheMaker $ \rc ->
+                          CSX.forAllPapers str (doCsxPaper (Cfg rc) outMode)
+         _ ->
+             do (out :: Seq.Seq (Path Abs File)) <-
+                    walkDirAccum descender outwriter inDir
+                logInfo $ "Found " <> showText (length out) <> " in files in " <> showText inDir
+                let todoPdfs = filter (not . flip S.member (s_completed state)) $ F.toList out
+                logNote $ "Unhandled files: " <> showText (length todoPdfs)
+                cacheMaker $ \rc ->
+                    workLoop mode (c_jobs cfg) outMode state todoPdfs (Cfg rc)
 
 sentenceSplitter :: T.Text -> T.Text
 sentenceSplitter = T.intercalate "\n============\n" . sentenceSplit
+
+doCsxPaper :: Cfg -> OutMode -> CSX.CsPaper -> IO ()
+doCsxPaper rc outMode csp =
+    do cits <- getCitationsFromCiteSeerX rc csp
+       res <- handleResult (showText $ CSX.cp_id csp) (Just cits)
+       let fname x = T.unpack $ CSX.unCsPaperId (CSX.cp_id x) <> ".pdf"
+       _ <- handleOutput outMode fname csp res
+       pure ()
+
+handleOutput ::
+    Show el
+    => OutMode
+    -> (el -> FilePath)
+    -> el
+    -> ( Maybe PaperMeta
+       , Maybe (ExtractionResult (Maybe DblpPaper))
+       , T.Text, HM.HashMap GlobalId T.Text
+       )
+    -> IO (Maybe el)
+handleOutput outMode mkFp el (paperMeta, extractRes, full, refTable) =
+    do fw <-
+           case om_dir outMode of
+             Just outDir ->
+                 do fbase <-
+                        parseRelFile $ FP.dropExtension $ mkFp el
+                    fullWriter <-
+                        async $
+                        do let fullFile = toFilePath (outDir </> fbase) <> ".txt"
+                           T.writeFile fullFile full
+                           let refsFile = toFilePath (outDir </> fbase) <> ".refs"
+                           T.writeFile refsFile (refTableText refTable)
+                           case paperMeta of
+                             Nothing -> logInfo "No paper info"
+                             Just pp ->
+                                 do let metaFile = toFilePath (outDir </> fbase) <> ".meta"
+                                    logInfo ("Wrote meta file to " <> showText metaFile)
+                                    BSL.writeFile metaFile (encode pp)
+                           logInfo ("Wrote full text to " <> showText fullFile)
+                    wait fullWriter
+                    pure $ Just el
+             Nothing -> pure Nothing
+       fw2 <-
+           case extractRes of
+             Just r ->
+                 do out <-
+                        try $!
+                        flip F.mapM_ (om_db outMode) $ \outDb ->
+                        handleExtractionResult (od_store outDb) (od_overwrite outDb)
+                            (ExtractionSource $ T.pack (od_src outDb)) r
+                    case out of
+                      Left (ex :: SomeException) ->
+                          do logError ("Failed to write " <> showText el <> " to db: " <> showText ex)
+                             pure Nothing
+                      Right _ -> pure (Just el)
+             Nothing ->
+                 pure Nothing
+       pure (fw <|> fw2)
 
 workLoop :: InMode -> Int -> OutMode -> State -> [Path Abs File] -> Cfg -> IO ()
 workLoop mode jobs outMode st todoQueue rc =
@@ -221,44 +282,8 @@ workLoop mode jobs outMode st todoQueue rc =
                 Left (ex :: SomeException) ->
                     do logError ("Failed to work on " <> showText f <> ": " <> showText ex)
                        pure Nothing
-                Right (paperMeta, extractRes, full, refTable) ->
-                    do fw <-
-                         case om_dir outMode of
-                         Just outDir ->
-                             do fbase <-
-                                    parseRelFile $ FP.dropExtension $ toFilePath $ filename f
-                                fullWriter <-
-                                    async $
-                                    do let fullFile = toFilePath (outDir </> fbase) <> ".txt"
-                                       T.writeFile fullFile full
-                                       let refsFile = toFilePath (outDir </> fbase) <> ".refs"
-                                       T.writeFile refsFile (refTableText refTable)
-                                       case paperMeta of
-                                         Nothing -> logInfo "No paper info"
-                                         Just pp ->
-                                             do let metaFile = toFilePath (outDir </> fbase) <> ".meta"
-                                                logInfo ("Wrote meta file to " <> showText metaFile)
-                                                BSL.writeFile metaFile (encode pp)
-                                       logInfo ("Wrote full text to " <> showText fullFile)
-                                wait fullWriter
-                                pure $ Just f
-                         Nothing -> pure Nothing
-                       fw2 <-
-                           case extractRes of
-                             Just r ->
-                                 do out <-
-                                        try $!
-                                        flip F.mapM_ (om_db outMode) $ \outDb ->
-                                        handleExtractionResult (od_store outDb) (od_overwrite outDb)
-                                            (ExtractionSource $ T.pack (od_src outDb)) r
-                                    case out of
-                                      Left (ex :: SomeException) ->
-                                          do logError ("Failed to write " <> showText f <> " to db: " <> showText ex)
-                                             pure Nothing
-                                      Right _ -> pure (Just f)
-                             Nothing ->
-                                 pure Nothing
-                       pure (fw <|> fw2)
+                Right x ->
+                    handleOutput outMode (toFilePath . filename) f x
        let st' = foldl' updateState st cmarkers
        F.mapM_ (\d -> writeState d st') (om_dir outMode)
        if not (null todoQueue')
@@ -323,6 +348,7 @@ handlePdf ::
 handlePdf mode rc fp =
     do cits <-
            case mode of
+             InCiteSeerX -> fail "This should never happen"
              InText -> Just <$> getCitationsFromTextFile rc fp
              InPdf -> getCitationsFromPdf rc fp
              InGrobid -> BS.readFile (toFilePath fp) >>= getCitationsFromGrobidXml rc
@@ -339,23 +365,33 @@ handlePdf mode rc fp =
                         then Just <$> BS.readFile (toFilePath bblFile)
                         else pure Nothing
                     getCitationsFromTex rc x y
-       case cits of
-         Nothing ->
-             do logError ("Failed to get citations from " <> showText fp)
-                pure (Nothing, Nothing, "", mempty)
-         Just er ->
-             let nodes = globalCitId <$> er_nodes er
-                 uniqueRefs =
-                     let refNodes = mapMaybe getRefNode nodes
-                         go mp rn =
-                             HM.insert (cr_tag rn) (cr_info rn) mp
-                     in foldl' go mempty refNodes
-             in pure
-                  ( exResToMeta er
-                  , Just er
-                  , sentenceSplitter $ mkTextBody nodes
-                  , uniqueRefs
-                  )
+       handleResult (showText fp) cits
+
+handleResult ::
+    T.Text
+    -> Maybe (ExtractionResult (Maybe DblpPaper))
+    -> IO ( Maybe PaperMeta
+          , Maybe (ExtractionResult (Maybe DblpPaper))
+          , T.Text, HM.HashMap GlobalId T.Text
+          )
+handleResult infoName cits =
+    case cits of
+      Nothing ->
+          do logError ("Failed to get citations from " <> infoName)
+             pure (Nothing, Nothing, "", mempty)
+      Just er ->
+          let nodes = globalCitId <$> er_nodes er
+              uniqueRefs =
+                  let refNodes = mapMaybe getRefNode nodes
+                      go mp rn =
+                          HM.insert (cr_tag rn) (cr_info rn) mp
+                  in foldl' go mempty refNodes
+          in pure
+               ( exResToMeta er
+               , Just er
+               , sentenceSplitter $ mkTextBody nodes
+               , uniqueRefs
+               )
 
 mkTextBody :: [ContentNode GlobalId] -> T.Text
 mkTextBody nds =

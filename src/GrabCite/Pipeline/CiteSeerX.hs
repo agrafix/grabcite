@@ -1,14 +1,35 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
-module GrabCite.Pipeline.CiteSeerX where
+module GrabCite.Pipeline.CiteSeerX
+    ( convertCsx )
+where
 
 import GrabCite.Pipeline
+import Util.CiteSeerX
 
 import Data.Monoid
+import qualified Data.Foldable as F
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 
-newtype CsCitId
-    = CsCitId { unCsCitId :: T.Text }
-    deriving (Show, Eq)
+convertCsx :: CsPaper -> CitedIn
+convertCsx csp =
+    let toks = mergeContexts $ F.toList preped
+    in CitedIn
+       { ci_title = cp_title csp
+       , ci_textCorpus = Seq.fromList toks
+       , ci_references = cMap
+       }
+    where
+      (cMap, preped) = F.foldl' handleCit (mempty, mempty) (cp_citations csp)
+      handleCit x@(refMap, corpusCands) cit =
+          case parseCsContext (cc_context cit) of
+            Nothing -> x
+            Just y ->
+                let refMap' = HM.insert (unCsCitId $ cc_id cit) (cc_title cit) refMap
+                    corpusCands' = corpusCands <> Seq.singleton (cc_id cit, y)
+                in (refMap', corpusCands')
 
 data CsContext
     = CsContext

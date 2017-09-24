@@ -37,6 +37,7 @@ library
                      , Util.Regex
                      , Util.Tex
                      , Util.Sentence
+                     , Util.CiteSeerX
   other-modules:       Util.Pdf
                      , Util.Text
                      , GrabCite.DB.Internal
@@ -82,7 +83,10 @@ library
                        hasql-migration,
                        hasql-simple,
                        time,
-                       random
+                       random,
+                       HDBC,
+                       HDBC-odbc,
+                       convertible >= 1.1
   default-language:    Haskell2010
   ghc-options:         -Wall
 

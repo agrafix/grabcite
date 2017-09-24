@@ -5,6 +5,7 @@ module GrabCite
     , getCitationsFromIceCiteJson
     , getCitationsFromIceCiteBasicJson
     , getCitationsFromGrobidXml
+    , getCitationsFromCiteSeerX
     , Cfg(..)
     )
 where
@@ -13,11 +14,13 @@ import GrabCite.Annotate
 import GrabCite.Dblp
 import GrabCite.GetCitations
 import GrabCite.Pipeline
+import GrabCite.Pipeline.CiteSeerX
 import GrabCite.Pipeline.Grobid
 import GrabCite.Pipeline.IceCite
 import GrabCite.Pipeline.IceCiteBasic
 import GrabCite.Pipeline.PdfToText
 import GrabCite.Pipeline.Tex
+import Util.CiteSeerX (CsPaper)
 import Util.Pdf
 
 import Control.Logger.Simple
@@ -51,6 +54,9 @@ getCitationsFromPdfBs rc bs =
 
 getCitationsFromPlainText :: Cfg -> T.Text -> IO (ExtractionResult (Maybe DblpPaper))
 getCitationsFromPlainText c = go c . pdfToTextAsInput
+
+getCitationsFromCiteSeerX :: Cfg -> CsPaper -> IO (ExtractionResult (Maybe DblpPaper))
+getCitationsFromCiteSeerX c = go c . InCited . convertCsx
 
 getCitationsFromGrobidXml :: Cfg -> BS.ByteString -> IO (Maybe (ExtractionResult (Maybe DblpPaper)))
 getCitationsFromGrobidXml rc bs =
