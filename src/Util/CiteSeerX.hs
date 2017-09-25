@@ -58,7 +58,7 @@ forAllPapers cstr action =
           "SELECT ID, TITLE FROM PAPERS;"
       citQ =
             "SELECT CC.CITATIONID, CC.CONTEXT, C.ARAW FROM CITATIONCONTEXTS CC, CITATIONS C"
-            <> "WHERE C.PAPERID = ? AND C.ID = CC.CITATIONID;"
+            <> " WHERE C.PAPERID = ? AND C.ID = CC.CITATIONID;"
       openConn =
           connectODBC cstr
       closeConn =

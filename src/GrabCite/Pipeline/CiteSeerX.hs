@@ -1,7 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 module GrabCite.Pipeline.CiteSeerX
-    ( convertCsx )
+    ( convertCsx
+    -- * for testing
+    , CsContext(..), CsCitId(..), parseCsContext, mergeContexts, findWordMerge
+    )
 where
 
 import GrabCite.Pipeline

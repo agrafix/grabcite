@@ -68,4 +68,42 @@ generalization of the conjecture.
  </oai_dc:dc>
 </metadata>
 </record>
+<record>
+<header>
+ <identifier>oai:arXiv.org:1312.3905</identifier>
+ <datestamp>2014-02-19</datestamp>
+ <setSpec>cs</setSpec>
+</header>
+<metadata>
+ <oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd">
+ <dc:title>A Combinatorial $\tilde{O}(m^{3/2})$-time Algorithm for the Min-Cost
+  Flow Problem</dc:title>
+ <dc:creator>Becker, Ruben</dc:creator>
+ <dc:creator>Karrenbauer, Andreas</dc:creator>
+ <dc:subject>Computer Science - Data Structures and Algorithms</dc:subject>
+ <dc:description>  We present a combinatorial method for the min-cost flow problem and prove
+that its expected running time is bounded by $\tilde O(m^{3/2})$. This matches
+the best known bounds, which previously have only been achieved by numerical
+algorithms or for special cases. Our contribution contains three parts that
+might be interesting in their own right: (1) We provide a construction of an
+equivalent auxiliary network and interior primal and dual points with potential
+$P_0=\tilde{O}(\sqrt{m})$ in linear time. (2) We present a combinatorial
+potential reduction algorithm that transforms initial solutions of potential
+$P_0$ to ones with duality gap below $1$ in $\tilde O(P_0\cdot
+\mbox{CEF}(n,m,\epsilon))$ time, where $\epsilon^{-1}=O(m^2)$ and
+$\mbox{CEF}(n,m,\epsilon)$ denotes the running time of any combinatorial
+algorithm that computes an $\epsilon$-approximate electrical flow. (3) We show
+that solutions with duality gap less than $1$ suffice to compute optimal
+integral potentials in $O(m+n\log n)$ time with our novel crossover procedure.
+All in all, using a variant of a state-of-the-art $\epsilon$-electrical flow
+solver, we obtain an algorithm for the min-cost flow problem running in $\tilde
+O(m^{3/2})$.
+</dc:description>
+ <dc:date>2013-12-13</dc:date>
+ <dc:date>2014-02-18</dc:date>
+ <dc:type>text</dc:type>
+ <dc:identifier>http://arxiv.org/abs/1312.3905</dc:identifier>
+ </oai_dc:dc>
+</metadata>
+</record>
 </ListRecords>

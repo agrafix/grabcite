@@ -164,8 +164,9 @@ main =
                      outs <-
                          runResourceT $
                          arxivSpecLoadingPipeline cfg $$ CL.consume
-                     map as_ident outs `shouldBe` ["0704.0002", "0704.0046"]
-                     map (BS.null . as_tex) outs `shouldBe` [False, False]
+                     map as_ident outs `shouldBe` ["0704.0002", "0704.0046", "1312.3905"]
+                     map (BS.null . as_tex) outs `shouldBe` [False, False, False]
+                     map as_texName outs `shouldBe` ["sparsity-certifying.tex","0704.0046","icalp.tex"]
               it "parses the xml correctly" $
                   do outs <-
                          runResourceT $
@@ -179,6 +180,11 @@ main =
                          , MetaHeader
                            { mh_ident = "oai:arXiv.org:0704.0046"
                            , mh_datestamp = "2009-11-13"
+                           , mh_setSpec = "cs"
+                           }
+                         , MetaHeader
+                           { mh_ident = "oai:arXiv.org:1312.3905"
+                           , mh_datestamp = "2014-02-19"
                            , mh_setSpec = "cs"
                            }
                          ]

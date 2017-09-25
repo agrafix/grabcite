@@ -86,7 +86,8 @@ library
                        random,
                        HDBC,
                        HDBC-odbc,
-                       convertible >= 1.1
+                       convertible >= 1.1,
+                       unix
   default-language:    Haskell2010
   ghc-options:         -Wall
 

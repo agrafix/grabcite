@@ -20,7 +20,9 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Resource
 import Data.Bifunctor
 import Data.Conduit
+import Data.List
 import Data.List (find)
+import Data.Ord
 import Data.XML.Types
 import Path
 import Path.IO
@@ -32,6 +34,7 @@ import qualified Data.Conduit.List as CL
 import qualified Data.Foldable as F
 import qualified Data.Text as T
 import qualified Data.Traversable as T
+import qualified System.Posix.Files as F
 
 data ArxivCfg a
     = ArxivCfg
@@ -85,6 +88,7 @@ data MetaHeader
 data ArxivSource
     = ArxivSource
     { as_ident :: !T.Text
+    , as_texName :: !FilePath
     , as_tex :: !BS.ByteString
     , as_bbl :: !(Maybe BS.ByteString)
     } deriving (Show, Eq)
@@ -156,6 +160,7 @@ handleSourceForMeta baseDir mh =
                                  pure
                                      ArxivSource
                                      { as_ident = si
+                                     , as_texName = toFilePath (filename x)
                                      , as_tex = tfContent
                                      , as_bbl = Nothing
                                      }
@@ -171,9 +176,27 @@ handleSourceForMeta baseDir mh =
                case exitCode of
                  ExitSuccess ->
                      do (_, allFiles) <- listDirRecur tempDir
-                        let texFile = find (\f -> fileExtension f == ".tex") allFiles
+                        let texFiles = filter (\f -> fileExtension f == ".tex") allFiles
                             bblFile = find (\f -> fileExtension f == ".bbl") allFiles
-                        case texFile of
+                            matchingTexFile =
+                                case bblFile of
+                                  Just fn -> fn -<.> "tex"
+                                  Nothing -> Nothing
+                        texFileBbl <- liftIO $ T.mapM doesFileExist matchingTexFile
+                        sized <-
+                            liftIO $
+                            forM texFiles $ \tf ->
+                            do sz <- F.fileSize <$> F.getFileStatus (toFilePath tf)
+                               hasTitle <-
+                                   (\x -> "\\title" `BS.isInfixOf` x)
+                                   <$> BS.readFile (toFilePath tf)
+                               pure (hasTitle, sz, tf)
+                        let texSorted =
+                                fmap (\(_, _, x) -> x) $
+                                listToMaybe $
+                                sortBy (sortPairs flip (\(t, _, _) -> t) flip (\(_, sz, _) -> sz))
+                                sized
+                        case (if fromMaybe False texFileBbl then matchingTexFile else texSorted) of
                           Nothing ->
                               do logWarn ("No .tex file found in: "
                                           <> showText allFiles <> " of " <> showText fullPath)
@@ -184,6 +207,7 @@ handleSourceForMeta baseDir mh =
                                  pure
                                      ArxivSource
                                      { as_ident = si
+                                     , as_texName = toFilePath (filename tf)
                                      , as_tex = tfContent
                                      , as_bbl = bblContent
                                      }
@@ -194,6 +218,14 @@ handleSourceForMeta baseDir mh =
                              <> showText code)
                         gzHandler si tempDir tempLoc
 
+sortPairs ::
+    (Ord x, Ord a, Monoid b)
+    => ((t -> t -> Ordering) -> b)
+    -> (t -> a)
+    -> ((s -> s -> Ordering) -> b)
+    -> (s -> x)
+    -> b
+sortPairs f x g y = f (comparing x) `mappend` g (comparing y)
 
 pathFromIdent :: T.Text -> Maybe (T.Text, Path Rel File)
 pathFromIdent i =
