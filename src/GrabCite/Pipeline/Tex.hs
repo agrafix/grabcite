@@ -123,7 +123,8 @@ handleBody bdy =
             ((BText x : _) : _) -> setTitle $ T.unwords $ T.words x
             _ ->
                 pure $ pureWarn ("Bad title: " <> showText bdy) ()
-      BCmd (Cmd "cite" cargs _) ->
+      BCmd (Cmd citeMode cargs _)
+          | citeMode == "cite" || citeMode == "citet" || citeMode == "citep" ->
           forM_ cargs $ \arg ->
           case arg of
             (BText x : _) -> mapM_ pushCite (filter (not . T.null) $ T.splitOn "," x)
