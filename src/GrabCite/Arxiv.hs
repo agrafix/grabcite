@@ -236,10 +236,10 @@ pathFromIdent i =
     where
       fullPath :: T.Text -> T.Text -> Maybe (T.Text, Path Rel File)
       fullPath (T.unpack -> prefix) (T.unpack -> counter) =
-          do myDir <- parseRelDir prefix
+          do -- myDir <- parseRelDir prefix
              myPrefix <- parseRelFile prefix
              myFile <- myPrefix <.> counter
-             pure (T.pack $ prefix ++ "." ++ counter, myDir </> myFile)
+             pure (T.pack $ prefix ++ "." ++ counter, myFile)
       mkPath :: T.Text -> Maybe (T.Text, Path Rel File)
       mkPath x =
           let (prefix, counter) = second (T.drop 1) $ T.breakOn "." x
