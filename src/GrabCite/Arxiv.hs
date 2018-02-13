@@ -128,6 +128,7 @@ handleSourceForMeta ::
 handleSourceForMeta baseDir mh =
     runMaybeT $
     do (strippedIdent, basePath) <- MaybeT (pure $ pathFromIdent $ mh_ident mh)
+       logDebug ("Ident: " <> showText strippedIdent <> " Base path: " <> showText basePath)
        let fullPath = baseDir </> basePath
        tarGzHandler strippedIdent fullPath
     where
